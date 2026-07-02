@@ -36,21 +36,22 @@ class SlideMergeScreen extends StatefulWidget {
 class _SlideMergeScreenState extends State<SlideMergeScreen> {
   static const int size = 5;
   final math.Random _random = math.Random();
-  late List<int> _cells;
+  late List<_GameTile?> _cells;
   int _score = 0;
   int _moves = 0;
   int _best = 0;
-  int? _lastSpawned;
+  int? _lastSpawnedId;
+  int _nextTileId = 1;
 
   bool get _isGameOver {
-    if (_cells.any((cell) => cell == 0)) return false;
+    if (_cells.any((cell) => cell == null)) return false;
     for (var row = 0; row < size; row++) {
       for (var col = 0; col < size; col++) {
-        final value = _cells[_index(row, col)];
-        if (row + 1 < size && _cells[_index(row + 1, col)] == value) {
+        final value = _cells[_index(row, col)]!.power;
+        if (row + 1 < size && _cells[_index(row + 1, col)]?.power == value) {
           return false;
         }
-        if (col + 1 < size && _cells[_index(row, col + 1)] == value) {
+        if (col + 1 < size && _cells[_index(row, col + 1)]?.power == value) {
           return false;
         }
       }
@@ -65,12 +66,13 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   }
 
   void _restart() {
-    _cells = List<int>.filled(size * size, 0);
+    _cells = List<_GameTile?>.filled(size * size, null);
     _score = 0;
     _moves = 0;
+    _nextTileId = 1;
     _spawn(mark: false);
     _spawn(mark: false);
-    _lastSpawned = null;
+    _lastSpawnedId = null;
     setState(() {});
   }
 
@@ -79,20 +81,25 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   void _spawn({bool mark = true}) {
     final empty = <int>[];
     for (var i = 0; i < _cells.length; i++) {
-      if (_cells[i] == 0) empty.add(i);
+      if (_cells[i] == null) empty.add(i);
     }
     if (empty.isEmpty) return;
     final index = empty[_random.nextInt(empty.length)];
-    _cells[index] = _random.nextDouble() < 0.82 ? 1 : 2;
-    _lastSpawned = mark ? index : null;
+    final tile = _GameTile(
+      id: _nextTileId++,
+      power: _random.nextDouble() < 0.82 ? 1 : 2,
+    );
+    _cells[index] = tile;
+    _lastSpawnedId = mark ? tile.id : null;
   }
 
   void _slide(_Direction direction) {
-    final before = List<int>.from(_cells);
+    final before = List<_GameTile?>.from(_cells);
+    final nextCells = List<_GameTile?>.filled(size * size, null);
     var gained = 0;
 
     for (var line = 0; line < size; line++) {
-      final values = <int>[];
+      final tiles = <_GameTile>[];
       for (var step = 0; step < size; step++) {
         final row = switch (direction) {
           _Direction.left || _Direction.right => line,
@@ -104,23 +111,20 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
           _Direction.left => step,
           _Direction.right => size - 1 - step,
         };
-        final value = _cells[_index(row, col)];
-        if (value != 0) values.add(value);
+        final tile = _cells[_index(row, col)];
+        if (tile != null) tiles.add(tile);
       }
 
-      final merged = <int>[];
-      for (var i = 0; i < values.length; i++) {
-        if (i + 1 < values.length && values[i] == values[i + 1]) {
-          final next = values[i] + 1;
-          merged.add(next);
+      final merged = <_GameTile>[];
+      for (var i = 0; i < tiles.length; i++) {
+        if (i + 1 < tiles.length && tiles[i].power == tiles[i + 1].power) {
+          final next = tiles[i].power + 1;
+          merged.add(tiles[i].copyWith(power: next));
           gained += 1 << next;
           i++;
         } else {
-          merged.add(values[i]);
+          merged.add(tiles[i]);
         }
-      }
-      while (merged.length < size) {
-        merged.add(0);
       }
 
       for (var step = 0; step < size; step++) {
@@ -134,22 +138,25 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
           _Direction.left => step,
           _Direction.right => size - 1 - step,
         };
-        _cells[_index(row, col)] = merged[step];
+        if (step < merged.length) {
+          nextCells[_index(row, col)] = merged[step];
+        }
       }
     }
 
-    if (!_sameBoard(before, _cells)) {
+    if (!_sameBoard(before, nextCells)) {
       _moves++;
       _score += gained;
       _best = math.max(_best, _score);
+      _cells = nextCells;
       _spawn();
       setState(() {});
     }
   }
 
-  bool _sameBoard(List<int> a, List<int> b) {
+  bool _sameBoard(List<_GameTile?> a, List<_GameTile?> b) {
     for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
+      if (a[i]?.id != b[i]?.id || a[i]?.power != b[i]?.power) return false;
     }
     return true;
   }
@@ -190,22 +197,10 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
                       child: GestureDetector(
                         onHorizontalDragEnd: _handleDrag,
                         onVerticalDragEnd: _handleDrag,
-                        child: SizedBox.square(
-                          dimension: boardSize,
-                          child: GridView.builder(
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _cells.length,
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: size,
-                                  crossAxisSpacing: 7,
-                                  mainAxisSpacing: 7,
-                                ),
-                            itemBuilder: (context, index) => _MergeTile(
-                              power: _cells[index],
-                              isNew: index == _lastSpawned,
-                            ),
-                          ),
+                        child: _MergeBoard(
+                          cells: _cells,
+                          lastSpawnedId: _lastSpawnedId,
+                          boardSize: boardSize,
                         ),
                       ),
                     );
@@ -240,6 +235,17 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
 }
 
 enum _Direction { left, right, up, down }
+
+class _GameTile {
+  const _GameTile({required this.id, required this.power});
+
+  final int id;
+  final int power;
+
+  _GameTile copyWith({required int power}) {
+    return _GameTile(id: id, power: power);
+  }
+}
 
 class _Header extends StatelessWidget {
   const _Header({
@@ -304,6 +310,71 @@ class _Metric extends StatelessWidget {
           ),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
         ],
+      ),
+    );
+  }
+}
+
+class _MergeBoard extends StatelessWidget {
+  const _MergeBoard({
+    required this.cells,
+    required this.lastSpawnedId,
+    required this.boardSize,
+  });
+
+  final List<_GameTile?> cells;
+  final int? lastSpawnedId;
+  final double boardSize;
+
+  @override
+  Widget build(BuildContext context) {
+    const gap = 7.0;
+    final tileSize =
+        (boardSize - gap * (_SlideMergeScreenState.size - 1)) /
+        _SlideMergeScreenState.size;
+
+    return SizedBox.square(
+      dimension: boardSize,
+      child: Stack(
+        children: [
+          for (var index = 0; index < cells.length; index++)
+            Positioned(
+              left: (index % _SlideMergeScreenState.size) * (tileSize + gap),
+              top: (index ~/ _SlideMergeScreenState.size) * (tileSize + gap),
+              width: tileSize,
+              height: tileSize,
+              child: const _TileBase(),
+            ),
+          for (var index = 0; index < cells.length; index++)
+            if (cells[index] case final tile?)
+              AnimatedPositioned(
+                key: ValueKey(tile.id),
+                duration: const Duration(milliseconds: 210),
+                curve: Curves.easeOutCubic,
+                left: (index % _SlideMergeScreenState.size) * (tileSize + gap),
+                top: (index ~/ _SlideMergeScreenState.size) * (tileSize + gap),
+                width: tileSize,
+                height: tileSize,
+                child: _MergeTile(
+                  power: tile.power,
+                  isNew: tile.id == lastSpawnedId,
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TileBase extends StatelessWidget {
+  const _TileBase();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B2522),
+        borderRadius: BorderRadius.circular(8),
       ),
     );
   }
