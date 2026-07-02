@@ -40,6 +40,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   int _score = 0;
   int _moves = 0;
   int _best = 0;
+  int? _lastSpawned;
 
   bool get _isGameOver {
     if (_cells.any((cell) => cell == 0)) return false;
@@ -67,22 +68,23 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     _cells = List<int>.filled(size * size, 0);
     _score = 0;
     _moves = 0;
-    _spawn();
-    _spawn();
+    _spawn(mark: false);
+    _spawn(mark: false);
+    _lastSpawned = null;
     setState(() {});
   }
 
   int _index(int row, int col) => row * size + col;
 
-  void _spawn() {
+  void _spawn({bool mark = true}) {
     final empty = <int>[];
     for (var i = 0; i < _cells.length; i++) {
       if (_cells[i] == 0) empty.add(i);
     }
     if (empty.isEmpty) return;
-    _cells[empty[_random.nextInt(empty.length)]] = _random.nextDouble() < 0.82
-        ? 1
-        : 2;
+    final index = empty[_random.nextInt(empty.length)];
+    _cells[index] = _random.nextDouble() < 0.82 ? 1 : 2;
+    _lastSpawned = mark ? index : null;
   }
 
   void _slide(_Direction direction) {
@@ -199,8 +201,10 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
                                   crossAxisSpacing: 7,
                                   mainAxisSpacing: 7,
                                 ),
-                            itemBuilder: (context, index) =>
-                                _MergeTile(power: _cells[index]),
+                            itemBuilder: (context, index) => _MergeTile(
+                              power: _cells[index],
+                              isNew: index == _lastSpawned,
+                            ),
                           ),
                         ),
                       ),
@@ -212,7 +216,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
               Text(
                 _isGameOver
                     ? 'No moves left. Start a fresh board.'
-                    : 'Swipe to merge matching tiles. Bigger boards, slower pressure.',
+                    : 'Swipe to merge. After each move, a new tile appears in a random empty cell.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Color(0xFFCFE2DE),
@@ -306,9 +310,10 @@ class _Metric extends StatelessWidget {
 }
 
 class _MergeTile extends StatelessWidget {
-  const _MergeTile({required this.power});
+  const _MergeTile({required this.power, required this.isNew});
 
   final int power;
+  final bool isNew;
 
   @override
   Widget build(BuildContext context) {
@@ -324,6 +329,9 @@ class _MergeTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(8),
+        border: isNew
+            ? Border.all(color: const Color(0xFFFFFFFF), width: 2.5)
+            : null,
       ),
       child: Center(
         child: Text(
