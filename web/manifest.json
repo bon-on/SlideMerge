@@ -1,0 +1,35 @@
+{
+    "name": "Slide Merge",
+    "short_name": "Slide Merge",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#111614",
+    "theme_color": "#38BDF8",
+    "description": "A compact 5x5 sliding merge puzzle.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
