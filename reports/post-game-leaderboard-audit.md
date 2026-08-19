@@ -7,9 +7,9 @@
 - Detected profiles: none
 - Approved packs: none
 - Blocked: no
-- Specs: 2
-- ADRs: 2
-- Contracts: 2
+- Specs: 3
+- ADRs: 3
+- Contracts: 3
 - Critical findings: 0
 - Warnings: 0
 

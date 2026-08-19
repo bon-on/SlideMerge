@@ -191,6 +191,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
