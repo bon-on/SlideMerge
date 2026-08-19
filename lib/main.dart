@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'result_registration.dart';
 
 void main() => runApp(const SlideMergeApp());
 
@@ -39,6 +40,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   late List<_GameTile?> _cells;
   int _score = 0;
   int _moves = 0;
+  bool _resultOffered = false;
   int _best = 0;
   int? _lastSpawnedId;
   int _nextTileId = 1;
@@ -69,6 +71,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     _cells = List<_GameTile?>.filled(size * size, null);
     _score = 0;
     _moves = 0;
+    _resultOffered = false;
     _nextTileId = 1;
     _spawn(mark: false);
     _spawn(mark: false);
@@ -151,6 +154,20 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       _cells = nextCells;
       _spawn();
       setState(() {});
+      if (_isGameOver && !_resultOffered) {
+        _resultOffered = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            offerResultRegistration(
+              context,
+              gameId: 'slide-merge',
+              metric: 'score',
+              value: _score,
+              displayValue: '$_score점',
+            );
+          }
+        });
+      }
     }
   }
 
