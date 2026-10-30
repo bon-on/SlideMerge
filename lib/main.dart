@@ -1,6 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import 'best_score_store.dart';
+import 'game_logic.dart';
 import 'result_registration.dart';
 
 void main() => runApp(const SlideMergeApp());
@@ -35,216 +39,206 @@ class SlideMergeScreen extends StatefulWidget {
 }
 
 class _SlideMergeScreenState extends State<SlideMergeScreen> {
-  static const int size = 5;
-  final math.Random _random = math.Random();
-  late List<_GameTile?> _cells;
-  int _score = 0;
-  int _moves = 0;
-  bool _resultOffered = false;
-  int _best = 0;
-  int? _lastSpawnedId;
-  int _nextTileId = 1;
+  static const double _swipeThreshold = 24;
+  static const double _maxContentWidth = 520;
 
-  bool get _isGameOver {
-    if (_cells.any((cell) => cell == null)) return false;
-    for (var row = 0; row < size; row++) {
-      for (var col = 0; col < size; col++) {
-        final value = _cells[_index(row, col)]!.power;
-        if (row + 1 < size && _cells[_index(row + 1, col)]?.power == value) {
-          return false;
-        }
-        if (col + 1 < size && _cells[_index(row, col + 1)]?.power == value) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
+  late SlideMergeGame _game;
+  final Map<String, int> _best = {};
+  final FocusNode _focus = FocusNode();
+  bool _resultOffered = false;
+  Offset _dragDelta = Offset.zero;
+  bool _dragHandled = false;
+
+  GameMode get _mode => _game.mode;
+  int get _bestScore => _best[_mode.id] ?? 0;
 
   @override
   void initState() {
     super.initState();
-    _restart();
+    _game = SlideMergeGame(mode: GameMode.classic);
+    for (final mode in GameMode.all) {
+      BestScoreStore.load(mode.id).then((value) {
+        if (!mounted) return;
+        setState(() => _best[mode.id] = math.max(value, _best[mode.id] ?? 0));
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
   }
 
   void _restart() {
-    _cells = List<_GameTile?>.filled(size * size, null);
-    _score = 0;
-    _moves = 0;
-    _resultOffered = false;
-    _nextTileId = 1;
-    _spawn(mark: false);
-    _spawn(mark: false);
-    _lastSpawnedId = null;
+    setState(() {
+      _game.reset();
+      _resultOffered = false;
+    });
+  }
+
+  void _setMode(GameMode mode) {
+    if (mode.id == _mode.id) return;
+    setState(() {
+      _game = SlideMergeGame(mode: mode);
+      _resultOffered = false;
+    });
+  }
+
+  void _undo() {
+    setState(() {
+      if (_game.undo()) _resultOffered = false;
+    });
+  }
+
+  void _move(Direction direction) {
+    if (!_game.move(direction)) return;
+    if (_game.score > _bestScore) {
+      _best[_mode.id] = _game.score;
+      BestScoreStore.save(_mode.id, _game.score);
+    }
     setState(() {});
-  }
-
-  int _index(int row, int col) => row * size + col;
-
-  void _spawn({bool mark = true}) {
-    final empty = <int>[];
-    for (var i = 0; i < _cells.length; i++) {
-      if (_cells[i] == null) empty.add(i);
-    }
-    if (empty.isEmpty) return;
-    final index = empty[_random.nextInt(empty.length)];
-    final tile = _GameTile(
-      id: _nextTileId++,
-      power: _random.nextDouble() < 0.82 ? 1 : 2,
-    );
-    _cells[index] = tile;
-    _lastSpawnedId = mark ? tile.id : null;
-  }
-
-  void _slide(_Direction direction) {
-    final before = List<_GameTile?>.from(_cells);
-    final nextCells = List<_GameTile?>.filled(size * size, null);
-    var gained = 0;
-
-    for (var line = 0; line < size; line++) {
-      final tiles = <_GameTile>[];
-      for (var step = 0; step < size; step++) {
-        final row = switch (direction) {
-          _Direction.left || _Direction.right => line,
-          _Direction.up => step,
-          _Direction.down => size - 1 - step,
-        };
-        final col = switch (direction) {
-          _Direction.up || _Direction.down => line,
-          _Direction.left => step,
-          _Direction.right => size - 1 - step,
-        };
-        final tile = _cells[_index(row, col)];
-        if (tile != null) tiles.add(tile);
-      }
-
-      final merged = <_GameTile>[];
-      for (var i = 0; i < tiles.length; i++) {
-        if (i + 1 < tiles.length && tiles[i].power == tiles[i + 1].power) {
-          final next = tiles[i].power + 1;
-          merged.add(tiles[i].copyWith(power: next));
-          gained += 1 << next;
-          i++;
-        } else {
-          merged.add(tiles[i]);
+    // Scores are only comparable within one mode: Classic feeds the leaderboard.
+    final finished = _game.isGameOver && _game.undoCharges == 0;
+    if (finished && !_resultOffered && _mode.id == GameMode.classic.id) {
+      _resultOffered = true;
+      final score = _game.score;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          offerResultRegistration(
+            context,
+            gameId: 'slide-merge',
+            metric: 'score',
+            value: score,
+            displayValue: '$score점',
+          );
         }
-      }
-
-      for (var step = 0; step < size; step++) {
-        final row = switch (direction) {
-          _Direction.left || _Direction.right => line,
-          _Direction.up => step,
-          _Direction.down => size - 1 - step,
-        };
-        final col = switch (direction) {
-          _Direction.up || _Direction.down => line,
-          _Direction.left => step,
-          _Direction.right => size - 1 - step,
-        };
-        if (step < merged.length) {
-          nextCells[_index(row, col)] = merged[step];
-        }
-      }
-    }
-
-    if (!_sameBoard(before, nextCells)) {
-      _moves++;
-      _score += gained;
-      _best = math.max(_best, _score);
-      _cells = nextCells;
-      _spawn();
-      setState(() {});
-      if (_isGameOver && !_resultOffered) {
-        _resultOffered = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            offerResultRegistration(
-              context,
-              gameId: 'slide-merge',
-              metric: 'score',
-              value: _score,
-              displayValue: '$_score점',
-            );
-          }
-        });
-      }
+      });
     }
   }
 
-  bool _sameBoard(List<_GameTile?> a, List<_GameTile?> b) {
-    for (var i = 0; i < a.length; i++) {
-      if (a[i]?.id != b[i]?.id || a[i]?.power != b[i]?.power) return false;
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final direction = switch (key) {
+      LogicalKeyboardKey.arrowLeft || LogicalKeyboardKey.keyA => Direction.left,
+      LogicalKeyboardKey.arrowRight ||
+      LogicalKeyboardKey.keyD => Direction.right,
+      LogicalKeyboardKey.arrowUp || LogicalKeyboardKey.keyW => Direction.up,
+      LogicalKeyboardKey.arrowDown || LogicalKeyboardKey.keyS => Direction.down,
+      _ => null,
+    };
+    if (direction != null) {
+      _move(direction);
+      return KeyEventResult.handled;
     }
-    return true;
+    if (key == LogicalKeyboardKey.keyZ || key == LogicalKeyboardKey.keyU) {
+      _undo();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
-  void _handleDrag(DragEndDetails details) {
-    final velocity = details.velocity.pixelsPerSecond;
-    if (velocity.distance < 160) return;
-    if (velocity.dx.abs() > velocity.dy.abs()) {
-      _slide(velocity.dx > 0 ? _Direction.right : _Direction.left);
+  void _onPanStart(DragStartDetails d) {
+    _dragDelta = Offset.zero;
+    _dragHandled = false;
+  }
+
+  void _onPanUpdate(DragUpdateDetails d) {
+    if (_dragHandled) return;
+    _dragDelta += d.delta;
+    if (_dragDelta.distance < _swipeThreshold) return;
+    _dragHandled = true;
+    if (_dragDelta.dx.abs() > _dragDelta.dy.abs()) {
+      _move(_dragDelta.dx > 0 ? Direction.right : Direction.left);
     } else {
-      _slide(velocity.dy > 0 ? _Direction.down : _Direction.up);
+      _move(_dragDelta.dy > 0 ? Direction.down : Direction.up);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final over = _game.isGameOver;
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-          child: Column(
-            children: [
-              _Header(
-                score: _score,
-                best: _best,
-                moves: _moves,
-                onRestart: _restart,
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final boardSize = math.min(
-                      constraints.maxWidth,
-                      constraints.maxHeight,
-                    );
-                    return Center(
-                      child: GestureDetector(
-                        onHorizontalDragEnd: _handleDrag,
-                        onVerticalDragEnd: _handleDrag,
-                        child: _MergeBoard(
-                          cells: _cells,
-                          lastSpawnedId: _lastSpawnedId,
-                          boardSize: boardSize,
-                        ),
+        child: Focus(
+          focusNode: _focus,
+          autofocus: true,
+          onKeyEvent: _onKey,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                child: Column(
+                  children: [
+                    _Header(
+                      score: _game.score,
+                      best: _bestScore,
+                      moves: _game.moves,
+                      onRestart: _restart,
+                    ),
+                    const SizedBox(height: 8),
+                    _Controls(
+                      mode: _mode,
+                      onMode: _setMode,
+                      charges: _game.undoCharges,
+                      progress: _game.mergeProgress,
+                      canUndo: _game.canUndo,
+                      onUndo: _undo,
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final boardSize = math.max(
+                            0.0,
+                            math.min(
+                              constraints.maxWidth,
+                              constraints.maxHeight,
+                            ),
+                          );
+                          return Center(
+                            child: GestureDetector(
+                              onPanStart: _onPanStart,
+                              onPanUpdate: _onPanUpdate,
+                              child: _MergeBoard(
+                                cells: _game.cells,
+                                size: _game.size,
+                                lastSpawnedId: _game.lastSpawnedId,
+                                boardSize: boardSize,
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      over
+                          ? (_game.canUndo
+                                ? 'No moves left. Use your undo charge or restart.'
+                                : 'No moves left. Start a fresh board.')
+                          : 'Swipe, arrow keys or WASD to merge. Undo (Z) recharges every ${SlideMergeGame.mergesPerCharge} merges.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFFCFE2DE),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (over && !_game.canUndo) ...[
+                      const SizedBox(height: 8),
+                      FilledButton.icon(
+                        onPressed: _restart,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Restart'),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                _isGameOver
-                    ? 'No moves left. Start a fresh board.'
-                    : 'Swipe to merge. After each move, a new tile appears in a random empty cell.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFFCFE2DE),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (_isGameOver) ...[
-                const SizedBox(height: 8),
-                FilledButton.icon(
-                  onPressed: _restart,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Restart'),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),
@@ -252,16 +246,59 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   }
 }
 
-enum _Direction { left, right, up, down }
+class _Controls extends StatelessWidget {
+  const _Controls({
+    required this.mode,
+    required this.onMode,
+    required this.charges,
+    required this.progress,
+    required this.canUndo,
+    required this.onUndo,
+  });
 
-class _GameTile {
-  const _GameTile({required this.id, required this.power});
+  final GameMode mode;
+  final ValueChanged<GameMode> onMode;
+  final int charges;
+  final int progress;
+  final bool canUndo;
+  final VoidCallback onUndo;
 
-  final int id;
-  final int power;
-
-  _GameTile copyWith({required int power}) {
-    return _GameTile(id: id, power: power);
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: SegmentedButton<GameMode>(
+            showSelectedIcon: false,
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12)),
+            ),
+            segments: [
+              for (final m in GameMode.all)
+                ButtonSegment(value: m, label: Text(m.label)),
+            ],
+            selected: {mode},
+            onSelectionChanged: (s) => onMode(s.first),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: charges > 0
+              ? 'Undo last move'
+              : 'Next charge in ${SlideMergeGame.mergesPerCharge - progress} merges',
+          child: FilledButton.tonalIcon(
+            onPressed: canUndo ? onUndo : null,
+            icon: const Icon(Icons.undo, size: 18),
+            label: Text(
+              charges > 0
+                  ? 'Undo'
+                  : '$progress/${SlideMergeGame.mergesPerCharge}',
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -336,20 +373,20 @@ class _Metric extends StatelessWidget {
 class _MergeBoard extends StatelessWidget {
   const _MergeBoard({
     required this.cells,
+    required this.size,
     required this.lastSpawnedId,
     required this.boardSize,
   });
 
-  final List<_GameTile?> cells;
+  final List<Tile?> cells;
+  final int size;
   final int? lastSpawnedId;
   final double boardSize;
 
   @override
   Widget build(BuildContext context) {
     const gap = 7.0;
-    final tileSize =
-        (boardSize - gap * (_SlideMergeScreenState.size - 1)) /
-        _SlideMergeScreenState.size;
+    final tileSize = (boardSize - gap * (size - 1)) / size;
 
     return SizedBox.square(
       dimension: boardSize,
@@ -357,8 +394,8 @@ class _MergeBoard extends StatelessWidget {
         children: [
           for (var index = 0; index < cells.length; index++)
             Positioned(
-              left: (index % _SlideMergeScreenState.size) * (tileSize + gap),
-              top: (index ~/ _SlideMergeScreenState.size) * (tileSize + gap),
+              left: (index % size) * (tileSize + gap),
+              top: (index ~/ size) * (tileSize + gap),
               width: tileSize,
               height: tileSize,
               child: const _TileBase(),
@@ -369,12 +406,13 @@ class _MergeBoard extends StatelessWidget {
                 key: ValueKey(tile.id),
                 duration: const Duration(milliseconds: 210),
                 curve: Curves.easeOutCubic,
-                left: (index % _SlideMergeScreenState.size) * (tileSize + gap),
-                top: (index ~/ _SlideMergeScreenState.size) * (tileSize + gap),
+                left: (index % size) * (tileSize + gap),
+                top: (index ~/ size) * (tileSize + gap),
                 width: tileSize,
                 height: tileSize,
                 child: _MergeTile(
                   power: tile.power,
+                  fontScale: tileSize / 70,
                   isNew: tile.id == lastSpawnedId,
                 ),
               ),
@@ -399,10 +437,15 @@ class _TileBase extends StatelessWidget {
 }
 
 class _MergeTile extends StatelessWidget {
-  const _MergeTile({required this.power, required this.isNew});
+  const _MergeTile({
+    required this.power,
+    required this.isNew,
+    required this.fontScale,
+  });
 
   final int power;
   final bool isNew;
+  final double fontScale;
 
   @override
   Widget build(BuildContext context) {
@@ -427,7 +470,7 @@ class _MergeTile extends StatelessWidget {
           power == 0 ? '' : '${1 << power}',
           style: TextStyle(
             color: power < 6 ? const Color(0xFF0B1110) : Colors.white,
-            fontSize: power < 10 ? 22 : 17,
+            fontSize: (power < 10 ? 22 : 17) * fontScale.clamp(0.6, 1.4),
             fontWeight: FontWeight.w900,
           ),
         ),

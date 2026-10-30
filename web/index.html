@@ -34,10 +34,10 @@
   <style>
     :root { --games-nav-height: calc(48px + env(safe-area-inset-top)); }
     html, body { height: 100%; margin: 0; }
-    body { padding-top: var(--games-nav-height); }
-    flt-glass-pane {
-      top: var(--games-nav-height) !important;
-      height: calc(100% - var(--games-nav-height)) !important;
+    body { overflow: hidden; background: #111614; }
+    #game-host {
+      position: fixed;
+      inset: var(--games-nav-height) 0 0 0;
     }
     .games-nav-bar {
       position: fixed;
@@ -65,6 +65,7 @@
   <nav class="games-nav-bar" aria-label="게임 내비게이션">
     <a class="games-home-link" href="https://bon-on.github.io/" aria-label="게임 선택 화면으로 돌아가기">← 게임 목록</a>
   </nav>
+  <div id="game-host"></div>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
@@ -80,7 +81,14 @@
   <script>
     {{flutter_js}}
     {{flutter_build_config}}
-    _flutter.loader.load();
+    _flutter.loader.load({
+      onEntrypointLoaded: async (engineInitializer) => {
+        const appRunner = await engineInitializer.initializeEngine({
+          hostElement: document.getElementById('game-host'),
+        });
+        await appRunner.runApp();
+      },
+    });
   </script>
 </body>
 </html>

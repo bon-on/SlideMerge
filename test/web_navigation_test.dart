@@ -12,8 +12,9 @@ void main() {
     expect(html, contains('z-index: 2147483647'));
     expect(html, contains('env(safe-area-inset-top)'));
     expect(html, contains('class="games-nav-bar"'));
-    expect(html, contains('padding-top: var(--games-nav-height)'));
-    expect(html, contains('top: var(--games-nav-height) !important'));
-    expect(html, contains('height: calc(100% - var(--games-nav-height))'));
+    // Flutter is hosted in a container that starts below the nav bar.
+    expect(html, contains('id="game-host"'));
+    expect(html, contains('inset: var(--games-nav-height) 0 0 0'));
+    expect(html, contains('hostElement'));
   });
 }
