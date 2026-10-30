@@ -32,7 +32,10 @@ class SlideMergeApp extends StatelessWidget {
 }
 
 class SlideMergeScreen extends StatefulWidget {
-  const SlideMergeScreen({super.key});
+  const SlideMergeScreen({super.key, this.gameFactory});
+
+  /// Test seam: builds the game for a mode (e.g. with a seeded Random).
+  final SlideMergeGame Function(GameMode mode)? gameFactory;
 
   @override
   State<SlideMergeScreen> createState() => _SlideMergeScreenState();
@@ -55,7 +58,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   @override
   void initState() {
     super.initState();
-    _game = SlideMergeGame(mode: GameMode.classic);
+    _game = _newGame(GameMode.classic);
     for (final mode in GameMode.all) {
       BestScoreStore.load(mode.id).then((value) {
         if (!mounted) return;
@@ -70,7 +73,32 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     super.dispose();
   }
 
+  SlideMergeGame _newGame(GameMode mode) =>
+      widget.gameFactory?.call(mode) ?? SlideMergeGame(mode: mode);
+
+  /// Offers leaderboard registration once per finished Classic run.
+  /// With [force] (restart / mode switch) a game-over run is offered even
+  /// while an undo charge is still unspent.
+  void _offerResultIfNeeded({bool force = false}) {
+    if (_mode.id != GameMode.classic.id || _resultOffered) return;
+    if (!_game.isGameOver || (!force && _game.undoCharges > 0)) return;
+    _resultOffered = true;
+    final score = _game.score;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        offerResultRegistration(
+          context,
+          gameId: 'slide-merge',
+          metric: 'score',
+          value: score,
+          displayValue: '$score점',
+        );
+      }
+    });
+  }
+
   void _restart() {
+    _offerResultIfNeeded(force: true);
     setState(() {
       _game.reset();
       _resultOffered = false;
@@ -79,8 +107,9 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
 
   void _setMode(GameMode mode) {
     if (mode.id == _mode.id) return;
+    _offerResultIfNeeded(force: true);
     setState(() {
-      _game = SlideMergeGame(mode: mode);
+      _game = _newGame(mode);
       _resultOffered = false;
     });
   }
@@ -99,22 +128,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     }
     setState(() {});
     // Scores are only comparable within one mode: Classic feeds the leaderboard.
-    final finished = _game.isGameOver && _game.undoCharges == 0;
-    if (finished && !_resultOffered && _mode.id == GameMode.classic.id) {
-      _resultOffered = true;
-      final score = _game.score;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          offerResultRegistration(
-            context,
-            gameId: 'slide-merge',
-            metric: 'score',
-            value: score,
-            displayValue: '$score점',
-          );
-        }
-      });
-    }
+    _offerResultIfNeeded();
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {

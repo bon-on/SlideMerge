@@ -11,4 +11,10 @@ void main() {
     expect(await BestScoreStore.load('classic'), 120);
     expect(await BestScoreStore.load('relaxed'), 40);
   });
+
+  test('a lower score never overwrites the stored best', () async {
+    SharedPreferences.setMockInitialValues({'best_score_classic': 500});
+    await BestScoreStore.save('classic', 20);
+    expect(await BestScoreStore.load('classic'), 500);
+  });
 }

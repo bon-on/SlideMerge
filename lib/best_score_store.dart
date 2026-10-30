@@ -16,7 +16,10 @@ class BestScoreStore {
   static Future<void> save(String modeId, int value) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt(_key(modeId), value);
+      // Never lower a stored best (e.g. a move made before load finished).
+      if (value > (prefs.getInt(_key(modeId)) ?? 0)) {
+        await prefs.setInt(_key(modeId), value);
+      }
     } catch (_) {}
   }
 }
