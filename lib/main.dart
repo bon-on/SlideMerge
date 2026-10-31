@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'best_score_store.dart';
 import 'game_logic.dart';
+import 'how_to_play.dart';
 import 'result_registration.dart';
 
 void main() => runApp(const SlideMergeApp());
@@ -31,8 +32,30 @@ class SlideMergeApp extends StatelessWidget {
   }
 }
 
+const List<TutorialStep> _tutorialSteps = [
+  TutorialStep(
+    Icons.grid_4x4,
+    'Slide the tiles and merge equal numbers into bigger ones. Do not fill the board.',
+  ),
+  TutorialStep(
+    Icons.swipe,
+    'Swipe, or use arrow keys / WASD, to slide every tile. Pick Classic 4x4 or Relaxed 5x5.',
+  ),
+  TutorialStep(
+    Icons.undo,
+    'Undo (button, Z or U) reverts a move. Earn a charge every ${SlideMergeGame.mergesPerCharge} merges.',
+  ),
+];
+
 class SlideMergeScreen extends StatefulWidget {
-  const SlideMergeScreen({super.key, this.gameFactory});
+  const SlideMergeScreen({
+    super.key,
+    this.gameFactory,
+    this.tutorialStore = const TutorialStore(),
+  });
+
+  /// First-run tutorial flag storage; tests can substitute a fake.
+  final TutorialStore tutorialStore;
 
   /// Test seam: builds the game for a mode (e.g. with a seeded Random).
   final SlideMergeGame Function(GameMode mode)? gameFactory;
@@ -51,6 +74,8 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   bool _resultOffered = false;
   Offset _dragDelta = Offset.zero;
   bool _dragHandled = false;
+  bool _tutorialOpen = false;
+  int _tutorialSession = 0;
 
   GameMode get _mode => _game.mode;
   int get _bestScore => _best[_mode.id] ?? 0;
@@ -65,6 +90,28 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
         setState(() => _best[mode.id] = math.max(value, _best[mode.id] ?? 0));
       });
     }
+    _maybeShowTutorial();
+  }
+
+  Future<void> _maybeShowTutorial() async {
+    final session = _tutorialSession;
+    final seen = await widget.tutorialStore.hasSeen();
+    // Ignore a stale answer if the player already opened it via "?".
+    if (!mounted || seen || session != _tutorialSession) return;
+    _openTutorial();
+  }
+
+  void _openTutorial() {
+    _tutorialSession++;
+    _dragHandled = true;
+    setState(() => _tutorialOpen = true);
+  }
+
+  void _closeTutorial() {
+    if (!_tutorialOpen) return;
+    setState(() => _tutorialOpen = false);
+    _focus.requestFocus();
+    widget.tutorialStore.markSeen();
   }
 
   @override
@@ -115,12 +162,14 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   }
 
   void _undo() {
+    if (_tutorialOpen) return;
     setState(() {
       if (_game.undo()) _resultOffered = false;
     });
   }
 
   void _move(Direction direction) {
+    if (_tutorialOpen) return;
     if (!_game.move(direction)) return;
     if (_game.score > _bestScore) {
       _best[_mode.id] = _game.score;
@@ -172,6 +221,21 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        _buildGame(context),
+        if (_tutorialOpen)
+          Positioned.fill(
+            child: HowToPlayOverlay(
+              steps: _tutorialSteps,
+              onClose: _closeTutorial,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildGame(BuildContext context) {
     final over = _game.isGameOver;
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -179,6 +243,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
         child: Focus(
           focusNode: _focus,
           autofocus: true,
+          canRequestFocus: !_tutorialOpen,
           onKeyEvent: _onKey,
           child: Center(
             child: ConstrainedBox(
@@ -192,6 +257,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
                       best: _bestScore,
                       moves: _game.moves,
                       onRestart: _restart,
+                      onHelp: _openTutorial,
                     ),
                     const SizedBox(height: 8),
                     _Controls(
@@ -322,21 +388,27 @@ class _Header extends StatelessWidget {
     required this.best,
     required this.moves,
     required this.onRestart,
+    required this.onHelp,
   });
 
   final int score;
   final int best;
   final int moves;
   final VoidCallback onRestart;
+  final VoidCallback onHelp;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         const Expanded(
-          child: Text(
-            'Slide Merge',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Slide Merge',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+            ),
           ),
         ),
         _Metric(label: 'Score', value: '$score'),
@@ -345,8 +417,15 @@ class _Header extends StatelessWidget {
         const SizedBox(width: 6),
         _Metric(label: 'Moves', value: '$moves'),
         IconButton(
+          onPressed: onHelp,
+          tooltip: 'How to play',
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.help_outline),
+        ),
+        IconButton(
           onPressed: onRestart,
           tooltip: 'Restart',
+          visualDensity: VisualDensity.compact,
           icon: const Icon(Icons.refresh),
         ),
       ],

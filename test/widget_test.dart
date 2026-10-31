@@ -37,7 +37,9 @@ int _tileCount(WidgetTester t) =>
     find.byType(AnimatedPositioned).evaluate().length;
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(
+    () => SharedPreferences.setMockInitialValues({'tutorial_seen_v1': true}),
+  );
 
   testWidgets('Slide Merge renders the game board', (tester) async {
     await tester.pumpWidget(const SlideMergeApp());
