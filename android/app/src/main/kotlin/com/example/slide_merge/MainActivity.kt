@@ -43,7 +43,7 @@ class MainActivity : FlutterActivity() {
         if (players.size >= MAX_PLAYERS) return
         runCatching {
             val key = FlutterInjector.instance().flutterLoader().getLookupKeyForAsset(asset)
-            val descriptor = assets.openFd("flutter_assets/$key")
+            val descriptor = assets.openFd(key)
             val player = MediaPlayer()
             try {
                 player.setAudioAttributes(
