@@ -75,6 +75,18 @@ class _SlowStore extends TutorialStore {
   Future<void> markSeen() async {}
 }
 
+class _LateSeenStore extends TutorialStore {
+  final Completer<void> release = Completer<void>();
+  @override
+  Future<bool> hasSeen() async {
+    await release.future;
+    return true;
+  }
+
+  @override
+  Future<void> markSeen() async {}
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -190,11 +202,32 @@ void main() {
     expect(_moves(tester), greaterThan(0));
   });
 
+  testWidgets('board accepts swipes after a late seen answer', (tester) async {
+    final store = _LateSeenStore();
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SlideMergeScreen(
+          tutorialStore: store,
+          gameFactory: (m) => SlideMergeGame(mode: m, random: math.Random(1)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    store.release.complete();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('How to play'));
+    await tester.pump();
+    expect(find.text('How to play'), findsOneWidget);
+  });
+
   testWidgets('F5 and Ctrl shortcuts are not swallowed by the card', (
     tester,
   ) async {
     await _pump(tester, _FakeStore());
-    await tester.sendKeyEvent(LogicalKeyboardKey.f5);
+    expect(await tester.sendKeyEvent(LogicalKeyboardKey.f5), isFalse);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
@@ -213,12 +246,24 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(_moves(tester), 0);
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(_moves(tester), lessThanOrEqualTo(1));
+    // Only auto-repeat events arrive for these held keys; none may move.
+    for (final key in [
+      LogicalKeyboardKey.arrowUp,
+      LogicalKeyboardKey.arrowRight,
+      LogicalKeyboardKey.arrowDown,
+      LogicalKeyboardKey.arrowLeft,
+    ]) {
+      await tester.sendKeyDownEvent(key);
+      final afterDown = _moves(tester);
+      await tester.pump(const Duration(milliseconds: 300));
+      final base = _moves(tester);
+      expect(base, greaterThanOrEqualTo(afterDown));
+      await tester.sendKeyRepeatEvent(key);
+      await tester.sendKeyRepeatEvent(key);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(_moves(tester), base, reason: '$key repeat must not act');
+      await tester.sendKeyUpEvent(key);
+    }
   });
 
   testWidgets('? reopens at step 1 without resetting the game', (tester) async {

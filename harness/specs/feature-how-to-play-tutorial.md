@@ -34,6 +34,7 @@ charge. Players asked for a short explanation with a way to skip it.
 - The store is injectable (`TutorialStore`) so tests do not need real prefs.
 - Text is English, card max width 360 px, scrollable for short viewports.
 - Slide Merge has no clock, so there is nothing to pause.
+- Pointer input is ignored until the seen-flag read has answered; the card does not consume Tab, F5 or Ctrl/Meta/Alt shortcuts. The game key handler ignores auto-repeat and Ctrl/Meta/Alt combos.
 
 ## Acceptance Criteria
 - Unset flag: overlay shown at launch; arrow keys and swipes do not move tiles.

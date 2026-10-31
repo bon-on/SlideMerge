@@ -120,7 +120,8 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       seen = await widget.tutorialStore.hasSeen();
     } catch (_) {}
     if (!mounted) return;
-    _tutorialChecked = true;
+    // Rebuild so the pointer gate in build() lifts even if nothing else does.
+    setState(() => _tutorialChecked = true);
     // Ignore a stale answer if the player already opened it via "?".
     if (seen || session != _tutorialSession) {
       _syncGameplay();
@@ -237,9 +238,8 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
-    // Ignore auto-repeat so a key still held from the tutorial card (Enter,
-    // Space) cannot act on the game after it closes.
-    if (event is KeyRepeatEvent) return KeyEventResult.handled;
+    // Auto-repeat of action keys is swallowed without acting, so a key still
+    // held from the tutorial card cannot act on the game after it closes.
     // Leave browser/OS shortcuts (Ctrl+R, Cmd+D, Alt+Left) alone.
     final keyboard = HardwareKeyboard.instance;
     if (keyboard.isControlPressed ||
@@ -247,6 +247,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
         keyboard.isAltPressed) {
       return KeyEventResult.ignored;
     }
+    final repeat = event is KeyRepeatEvent;
     final direction = switch (key) {
       LogicalKeyboardKey.arrowLeft || LogicalKeyboardKey.keyA => Direction.left,
       LogicalKeyboardKey.arrowRight ||
@@ -256,11 +257,11 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       _ => null,
     };
     if (direction != null) {
-      _move(direction);
+      if (!repeat) _move(direction);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.keyZ || key == LogicalKeyboardKey.keyU) {
-      _undo();
+      if (!repeat) _undo();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
