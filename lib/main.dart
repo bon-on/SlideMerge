@@ -523,58 +523,74 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Expanded(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Slide Merge',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Very narrow phones: shrink metrics and icon buttons so four icons fit.
+        final narrow = constraints.maxWidth < 330;
+        final buttonConstraints = narrow
+            ? const BoxConstraints.tightFor(width: 36, height: 40)
+            : null;
+        return Row(
+          children: [
+            const Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Slide Merge',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                ),
+              ),
             ),
-          ),
-        ),
-        _Metric(label: 'Score', value: '$score'),
-        const SizedBox(width: 6),
-        _Metric(label: 'Best', value: '$best'),
-        const SizedBox(width: 6),
-        _Metric(label: 'Moves', value: '$moves'),
-        IconButton(
-          onPressed: onHelp,
-          tooltip: 'How to play',
-          visualDensity: VisualDensity.compact,
-          icon: const Icon(Icons.help_outline),
-        ),
-        IconButton(
-          onPressed: onToggleSound,
-          tooltip: soundMuted ? 'Sound off' : 'Sound on',
-          visualDensity: VisualDensity.compact,
-          icon: Icon(
-            soundMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-          ),
-        ),
-        IconButton(
-          onPressed: onRestart,
-          tooltip: 'Restart',
-          visualDensity: VisualDensity.compact,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
+            _Metric(label: 'Score', value: '$score', width: narrow ? 52 : 62),
+            const SizedBox(width: 6),
+            _Metric(label: 'Best', value: '$best', width: narrow ? 52 : 62),
+            const SizedBox(width: 6),
+            _Metric(label: 'Moves', value: '$moves', width: narrow ? 52 : 62),
+            IconButton(
+              onPressed: onHelp,
+              tooltip: 'How to play',
+              visualDensity: VisualDensity.compact,
+              constraints: buttonConstraints,
+              padding: narrow ? EdgeInsets.zero : null,
+              icon: const Icon(Icons.help_outline),
+            ),
+            IconButton(
+              onPressed: onToggleSound,
+              tooltip: soundMuted ? 'Sound off' : 'Sound on',
+              visualDensity: VisualDensity.compact,
+              constraints: buttonConstraints,
+              padding: narrow ? EdgeInsets.zero : null,
+              icon: Icon(
+                soundMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+              ),
+            ),
+            IconButton(
+              onPressed: onRestart,
+              tooltip: 'Restart',
+              visualDensity: VisualDensity.compact,
+              constraints: buttonConstraints,
+              padding: narrow ? EdgeInsets.zero : null,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric({required this.label, required this.value});
+  const _Metric({required this.label, required this.value, this.width = 62});
 
   final String label;
   final String value;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 62,
+      width: width,
       height: 42,
       alignment: Alignment.center,
       decoration: BoxDecoration(

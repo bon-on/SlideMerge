@@ -361,6 +361,20 @@ void main() {
       expect(player.played, ['assets/audio/slide.wav']);
     });
 
+    for (final width in const [320.0, 360.0]) {
+      testWidgets('header with the sound button fits at $width px', (
+        tester,
+      ) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(const SlideMergeApp());
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.byTooltip('Sound on'), findsOneWidget);
+      });
+    }
+
     testWidgets('a stored mute choice is applied on launch', (tester) async {
       SharedPreferences.setMockInitialValues({
         'sound_muted_v1': true,
