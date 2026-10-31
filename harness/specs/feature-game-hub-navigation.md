@@ -22,6 +22,7 @@ Players who launch a game from the Bon-on dashboard need an explicit way to retu
 - Reserve a separate navigation bar above the web game and place the game-list link on its left.
 - Navigate directly to https://bon-on.github.io/ without relying on browser history.
 - Keep native mobile behavior and game rules unchanged.
+- Exception: the CrazyGames bundle (`feature-slide-merge-crazygames`) strips this navigation bar at build time because the portal does not allow outbound links.
 
 ## Acceptance Criteria
 - The web entry point contains an accessible link to the Bon-on game hub.

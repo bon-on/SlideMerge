@@ -28,3 +28,11 @@ flutter build web --release --base-href /SlideMerge/
 ```
 
 GitHub Pages deploys from `.github/workflows/deploy-pages.yml`.
+
+## CrazyGames Web Build
+
+`tool/build_crazygames.sh` builds `build/crazygames/` and the upload zip `build/slide-merge-crazygames.zip` (no hub link, leaderboard or ads; SDK gameplay events). See `docs/crazygames.md`.
+
+## Tutorial
+
+A short how-to-play card appears on first launch (skip with Esc or the Skip button). The `?` button in the header reopens it.

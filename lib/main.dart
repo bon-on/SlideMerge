@@ -6,12 +6,25 @@ import 'package:flutter/services.dart';
 import 'best_score_store.dart';
 import 'game_logic.dart';
 import 'how_to_play.dart';
+import 'platform/game_platform.dart';
 import 'result_registration.dart';
 
-void main() => runApp(const SlideMergeApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Portal builds (CrazyGames) report gameplay events; others get a no-op.
+  final platform = createGamePlatform();
+  try {
+    await platform.initialize();
+  } catch (_) {
+    // A broken portal SDK must never keep the game from starting.
+  }
+  runApp(SlideMergeApp(platform: platform));
+}
 
 class SlideMergeApp extends StatelessWidget {
-  const SlideMergeApp({super.key});
+  const SlideMergeApp({super.key, this.platform = const NoopGamePlatform()});
+
+  final GamePlatform platform;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +40,7 @@ class SlideMergeApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const SlideMergeScreen(),
+      home: SlideMergeScreen(platform: platform),
     );
   }
 }
@@ -52,7 +65,11 @@ class SlideMergeScreen extends StatefulWidget {
     super.key,
     this.gameFactory,
     this.tutorialStore = const TutorialStore(),
+    this.platform = const NoopGamePlatform(),
   });
+
+  /// Portal hooks (gameplay events, leaderboard policy); no-op by default.
+  final GamePlatform platform;
 
   /// First-run tutorial flag storage; tests can substitute a fake.
   final TutorialStore tutorialStore;
@@ -76,6 +93,9 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   bool _dragHandled = false;
   bool _tutorialOpen = false;
   int _tutorialSession = 0;
+  // Gameplay events wait until the first-run tutorial check has answered.
+  bool _tutorialChecked = false;
+  bool _gameplayActive = false;
 
   GameMode get _mode => _game.mode;
   int get _bestScore => _best[_mode.id] ?? 0;
@@ -95,21 +115,47 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
 
   Future<void> _maybeShowTutorial() async {
     final session = _tutorialSession;
-    final seen = await widget.tutorialStore.hasSeen();
+    var seen = false;
+    try {
+      seen = await widget.tutorialStore.hasSeen();
+    } catch (_) {}
+    if (!mounted) return;
+    _tutorialChecked = true;
     // Ignore a stale answer if the player already opened it via "?".
-    if (!mounted || seen || session != _tutorialSession) return;
+    if (seen || session != _tutorialSession) {
+      _syncGameplay();
+      return;
+    }
     _openTutorial();
+  }
+
+  /// Reports gameplay start/stop to the platform exactly on transitions:
+  /// running only after the tutorial check, while no tutorial is open and the
+  /// board still has a move.
+  void _syncGameplay() {
+    final wantActive = _tutorialChecked && !_tutorialOpen && !_game.isGameOver;
+    if (wantActive == _gameplayActive) return;
+    _gameplayActive = wantActive;
+    try {
+      if (wantActive) {
+        widget.platform.gameplayStart();
+      } else {
+        widget.platform.gameplayStop();
+      }
+    } catch (_) {}
   }
 
   void _openTutorial() {
     _tutorialSession++;
     _dragHandled = true;
     setState(() => _tutorialOpen = true);
+    _syncGameplay();
   }
 
   void _closeTutorial() {
     if (!_tutorialOpen) return;
     setState(() => _tutorialOpen = false);
+    _syncGameplay();
     _focus.requestFocus();
     widget.tutorialStore.markSeen();
   }
@@ -127,6 +173,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   /// With [force] (restart / mode switch) a game-over run is offered even
   /// while an undo charge is still unspent.
   void _offerResultIfNeeded({bool force = false}) {
+    if (!widget.platform.allowsResultRegistration) return;
     if (_mode.id != GameMode.classic.id || _resultOffered) return;
     if (!_game.isGameOver || (!force && _game.undoCharges > 0)) return;
     _resultOffered = true;
@@ -150,6 +197,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       _game.reset();
       _resultOffered = false;
     });
+    _syncGameplay();
   }
 
   void _setMode(GameMode mode) {
@@ -159,6 +207,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       _game = _newGame(mode);
       _resultOffered = false;
     });
+    _syncGameplay();
   }
 
   void _undo() {
@@ -166,6 +215,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     setState(() {
       if (_game.undo()) _resultOffered = false;
     });
+    _syncGameplay();
   }
 
   void _move(Direction direction) {
@@ -176,6 +226,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       BestScoreStore.save(_mode.id, _game.score);
     }
     setState(() {});
+    _syncGameplay();
     // Scores are only comparable within one mode: Classic feeds the leaderboard.
     _offerResultIfNeeded();
   }
