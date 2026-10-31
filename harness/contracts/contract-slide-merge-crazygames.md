@@ -4,6 +4,7 @@ title: Slide Merge CrazyGames web distribution contract
 status: active
 related_specs:
   - feature-slide-merge-crazygames
+  - feature-sound-effects
 evidence_files:
   - docs/crazygames.md
   - reports/slide-merge-crazygames-verification.md

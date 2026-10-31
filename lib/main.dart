@@ -8,6 +8,7 @@ import 'game_logic.dart';
 import 'how_to_play.dart';
 import 'platform/game_platform.dart';
 import 'result_registration.dart';
+import 'src/audio/sound_fx.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,9 +23,16 @@ Future<void> main() async {
 }
 
 class SlideMergeApp extends StatelessWidget {
-  const SlideMergeApp({super.key, this.platform = const NoopGamePlatform()});
+  const SlideMergeApp({
+    super.key,
+    this.platform = const NoopGamePlatform(),
+    this.soundFx,
+  });
 
   final GamePlatform platform;
+
+  /// Injectable sound effects; tests pass a recording one.
+  final SoundFx? soundFx;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +48,7 @@ class SlideMergeApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: SlideMergeScreen(platform: platform),
+      home: SlideMergeScreen(platform: platform, soundFx: soundFx),
     );
   }
 }
@@ -66,7 +74,11 @@ class SlideMergeScreen extends StatefulWidget {
     this.gameFactory,
     this.tutorialStore = const TutorialStore(),
     this.platform = const NoopGamePlatform(),
+    this.soundFx,
   });
+
+  /// Sound effects and mute switch; defaults to the real player.
+  final SoundFx? soundFx;
 
   /// Portal hooks (gameplay events, leaderboard policy); no-op by default.
   final GamePlatform platform;
@@ -96,6 +108,8 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   // Gameplay events wait until the first-run tutorial check has answered.
   bool _tutorialChecked = false;
   bool _gameplayActive = false;
+  late final SoundFx _sound =
+      widget.soundFx ?? SoundFx(platform: widget.platform);
 
   GameMode get _mode => _game.mode;
   int get _bestScore => _best[_mode.id] ?? 0;
@@ -103,6 +117,8 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   @override
   void initState() {
     super.initState();
+    _sound.addListener(_onSoundChanged);
+    if (widget.soundFx == null) _sound.load();
     _game = _newGame(GameMode.classic);
     for (final mode in GameMode.all) {
       BestScoreStore.load(mode.id).then((value) {
@@ -168,8 +184,20 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     widget.tutorialStore.markSeen();
   }
 
+  void _onSoundChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _toggleSound() {
+    _sound.toggle();
+    // Keep arrow keys working on the board after clicking the button.
+    _focus.requestFocus();
+  }
+
   @override
   void dispose() {
+    _sound.removeListener(_onSoundChanged);
+    if (widget.soundFx == null) _sound.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -220,15 +248,27 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
 
   void _undo() {
     if (_tutorialOpen || !_tutorialChecked) return;
+    var undone = false;
     setState(() {
-      if (_game.undo()) _resultOffered = false;
+      undone = _game.undo();
+      if (undone) _resultOffered = false;
     });
+    if (undone) _sound.play(Sfx.undo);
     _syncGameplay();
   }
 
   void _move(Direction direction) {
     if (_tutorialOpen || !_tutorialChecked) return;
+    final scoreBefore = _game.score;
     if (!_game.move(direction)) return;
+    // One sound per move: the end of the run beats a merge beats a plain slide.
+    _sound.play(
+      _game.isGameOver
+          ? Sfx.gameOver
+          : _game.score > scoreBefore
+          ? Sfx.merge
+          : Sfx.slide,
+    );
     if (_game.score > _bestScore) {
       _best[_mode.id] = _game.score;
       BestScoreStore.save(_mode.id, _game.score);
@@ -336,6 +376,8 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
                       moves: _game.moves,
                       onRestart: _restart,
                       onHelp: _openTutorial,
+                      soundMuted: _sound.userMuted,
+                      onToggleSound: _toggleSound,
                     ),
                     const SizedBox(height: 8),
                     _Controls(
@@ -467,6 +509,8 @@ class _Header extends StatelessWidget {
     required this.moves,
     required this.onRestart,
     required this.onHelp,
+    required this.soundMuted,
+    required this.onToggleSound,
   });
 
   final int score;
@@ -474,6 +518,8 @@ class _Header extends StatelessWidget {
   final int moves;
   final VoidCallback onRestart;
   final VoidCallback onHelp;
+  final bool soundMuted;
+  final VoidCallback onToggleSound;
 
   @override
   Widget build(BuildContext context) {
@@ -499,6 +545,14 @@ class _Header extends StatelessWidget {
           tooltip: 'How to play',
           visualDensity: VisualDensity.compact,
           icon: const Icon(Icons.help_outline),
+        ),
+        IconButton(
+          onPressed: onToggleSound,
+          tooltip: soundMuted ? 'Sound off' : 'Sound on',
+          visualDensity: VisualDensity.compact,
+          icon: Icon(
+            soundMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+          ),
         ),
         IconButton(
           onPressed: onRestart,

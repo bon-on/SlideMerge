@@ -5,6 +5,7 @@ status: accepted
 related_specs:
   - feature-slide-merge-crazygames
   - feature-slide-merge-gamepix
+  - feature-sound-effects
 ---
 
 # ADR: Build flag and platform adapter for CrazyGames
@@ -14,7 +15,7 @@ Slide Merge ships to GitHub Pages and mobile without any portal code. CrazyGames
 
 ## Decision
 - A compile-time constant `bool.fromEnvironment('CRAZYGAMES')` selects the CrazyGames adapter; without it the web build uses `NoopGamePlatform`. A conditional import on `dart.library.js_interop` keeps `dart:js_interop` out of native builds.
-- Game screens depend only on the `GamePlatform` interface (`initialize`, `gameplayStart`, `gameplayStop`, `allowsResultRegistration`) and call it on state transitions, guarded so exceptions never escape.
+- Game screens depend only on the `GamePlatform` interface (`initialize`, `gameplayStart`, `gameplayStop`, `allowsResultRegistration`, `isAudioMuted`) and call it on state transitions, guarded so exceptions never escape.
 - The SDK script and relative base href are injected into the build output by `tool/build_crazygames.sh`, not into `web/index.html`. This shell boots Flutter with an inline loader, so the SDK tag is inserted right after the `game-host` element, before that loader.
 - The hub navigation bar is removed from the output by the script; the leaderboard prompt is blocked via `allowsResultRegistration`.
 

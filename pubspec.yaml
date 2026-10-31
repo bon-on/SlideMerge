@@ -62,6 +62,7 @@ flutter:
   # Roboto is bundled so web builds never download it from fonts.gstatic.com
   # (portals require all resources to be local). License: assets/fonts/Roboto_LICENSE.txt
   assets:
+    - assets/audio/
     - assets/fonts/Roboto_LICENSE.txt
 
   fonts:

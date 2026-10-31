@@ -49,6 +49,8 @@ On `localhost` the SDK environment is `local`; the console shows `Requesting gam
 
 Calls are sent on transitions only. Leaderboard registration prompts are disabled in this build, and there are no ads.
 
+Sound: effects are muted while `SDK.game.settings.muteAudio` is true (read on every sound), in addition to the player's own sound toggle.
+
 ## Upload checklist
 
 - [ ] Submit through Basic Launch (ads are off there).

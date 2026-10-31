@@ -21,6 +21,10 @@ abstract class GamePlatform {
   /// Whether the post-game prompt to submit results to the Bon-on leaderboard
   /// may be shown. Portal builds keep players on the portal.
   bool get allowsResultRegistration;
+
+  /// Whether the portal asks the game to stay silent (CrazyGames audio
+  /// setting). Checked on every sound; false where no portal layer exists.
+  bool get isAudioMuted => false;
 }
 
 class NoopGamePlatform extends GamePlatform {

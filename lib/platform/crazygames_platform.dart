@@ -47,6 +47,19 @@ class CrazyGamesPlatform extends GamePlatform {
   @override
   bool get allowsResultRegistration => false;
 
+  @override
+  bool get isAudioMuted {
+    final sdk = _sdk;
+    if (sdk == null) {
+      return false;
+    }
+    try {
+      return sdk.game.settings.muteAudio;
+    } catch (_) {
+      return false;
+    }
+  }
+
   void _call(void Function(_Sdk sdk) action) {
     final sdk = _sdk;
     if (sdk == null) {
@@ -74,4 +87,9 @@ extension type _Sdk._(JSObject _) implements JSObject {
 extension type _GameModule._(JSObject _) implements JSObject {
   external void gameplayStart();
   external void gameplayStop();
+  external _Settings get settings;
+}
+
+extension type _Settings._(JSObject _) implements JSObject {
+  external bool get muteAudio;
 }

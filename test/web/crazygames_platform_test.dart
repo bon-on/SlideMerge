@@ -12,7 +12,9 @@ import 'package:slide_merge/platform/crazygames_platform.dart';
 /// Installs a fake `window.CrazyGames.SDK` and records the calls it receives.
 class _FakeSdk {
   _FakeSdk({this.environment = 'local', this.initResult}) {
+    settings.setProperty('muteAudio'.toJS, false.toJS);
     final game = JSObject()
+      ..setProperty('settings'.toJS, settings)
       ..setProperty(
         'gameplayStart'.toJS,
         (() => calls.add('gameplayStart')).toJS,
@@ -36,6 +38,11 @@ class _FakeSdk {
 
   final String environment;
   final Future<void>? initResult;
+  final JSObject settings = JSObject();
+
+  set muteAudio(bool value) =>
+      settings.setProperty('muteAudio'.toJS, value.toJS);
+
   final List<String> calls = <String>[];
 }
 
@@ -91,5 +98,18 @@ void main() {
     platform.gameplayStart();
     platform.gameplayStop();
     expect(sdk.calls, <String>['gameplayStart', 'gameplayStop']);
+  });
+
+  test('isAudioMuted follows the SDK muteAudio setting', () async {
+    final sdk = _FakeSdk();
+    final platform = CrazyGamesPlatform();
+    expect(platform.isAudioMuted, isFalse);
+    await platform.initialize();
+
+    expect(platform.isAudioMuted, isFalse);
+    sdk.muteAudio = true;
+    expect(platform.isAudioMuted, isTrue);
+    sdk.muteAudio = false;
+    expect(platform.isAudioMuted, isFalse);
   });
 }
