@@ -83,19 +83,37 @@ class _HowToPlayOverlayState extends State<HowToPlayOverlay> {
     if (_step > 0) setState(() => _step--);
   }
 
+  static final Set<LogicalKeyboardKey> _handledKeys = {
+    LogicalKeyboardKey.enter,
+    LogicalKeyboardKey.numpadEnter,
+    LogicalKeyboardKey.space,
+    LogicalKeyboardKey.escape,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowRight,
+  };
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (event is KeyUpEvent) return KeyEventResult.handled;
     final key = event.logicalKey;
+    // Leave browser/OS shortcuts (Ctrl+R, Cmd+L, Alt+Left), Tab and function
+    // keys such as F5 alone.
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed ||
+        !_handledKeys.contains(key)) {
+      return KeyEventResult.ignored;
+    }
+    if (event is! KeyDownEvent) return KeyEventResult.handled;
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter ||
         key == LogicalKeyboardKey.space) {
-      if (event is KeyDownEvent) _next();
+      _next();
     } else if (key == LogicalKeyboardKey.escape) {
-      if (event is KeyDownEvent) widget.onClose();
+      widget.onClose();
     } else if (key == LogicalKeyboardKey.arrowRight) {
-      if (event is KeyDownEvent) _forward();
+      _forward();
     } else if (key == LogicalKeyboardKey.arrowLeft) {
-      if (event is KeyDownEvent) _prev();
+      _prev();
     }
     return KeyEventResult.handled;
   }

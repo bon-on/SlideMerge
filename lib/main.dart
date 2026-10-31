@@ -156,7 +156,10 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     if (!_tutorialOpen) return;
     setState(() => _tutorialOpen = false);
     _syncGameplay();
-    _focus.requestFocus();
+    // canRequestFocus is only restored by the rebuild, so ask after the frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_tutorialOpen) _focus.requestFocus();
+    });
     widget.tutorialStore.markSeen();
   }
 
@@ -211,7 +214,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   }
 
   void _undo() {
-    if (_tutorialOpen) return;
+    if (_tutorialOpen || !_tutorialChecked) return;
     setState(() {
       if (_game.undo()) _resultOffered = false;
     });
@@ -219,7 +222,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   }
 
   void _move(Direction direction) {
-    if (_tutorialOpen) return;
+    if (_tutorialOpen || !_tutorialChecked) return;
     if (!_game.move(direction)) return;
     if (_game.score > _bestScore) {
       _best[_mode.id] = _game.score;
@@ -234,6 +237,16 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
+    // Ignore auto-repeat so a key still held from the tutorial card (Enter,
+    // Space) cannot act on the game after it closes.
+    if (event is KeyRepeatEvent) return KeyEventResult.handled;
+    // Leave browser/OS shortcuts (Ctrl+R, Cmd+D, Alt+Left) alone.
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
     final direction = switch (key) {
       LogicalKeyboardKey.arrowLeft || LogicalKeyboardKey.keyA => Direction.left,
       LogicalKeyboardKey.arrowRight ||
@@ -274,7 +287,16 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        _buildGame(context),
+        // Taps are ignored until the first-run check has answered, so the
+        // tutorial cannot open on top of a half-started game.
+        AbsorbPointer(
+          absorbing: !_tutorialChecked,
+          // Keep keyboard focus (Tab, Enter) out of the game under the card.
+          child: ExcludeFocus(
+            excluding: _tutorialOpen,
+            child: _buildGame(context),
+          ),
+        ),
         if (_tutorialOpen)
           Positioned.fill(
             child: HowToPlayOverlay(

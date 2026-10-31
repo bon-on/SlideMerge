@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -60,6 +61,18 @@ Future<void> _slide(WidgetTester tester) async {
     await tester.sendKeyEvent(key);
     await tester.pump(const Duration(milliseconds: 300));
   }
+}
+
+class _SlowStore extends TutorialStore {
+  final Completer<void> release = Completer<void>();
+  @override
+  Future<bool> hasSeen() async {
+    await release.future;
+    return false;
+  }
+
+  @override
+  Future<void> markSeen() async {}
 }
 
 void main() {
@@ -146,6 +159,66 @@ void main() {
     await tester.tap(find.text('Skip'));
     await tester.pumpAndSettle();
     expect(await const TutorialStore().hasSeen(), isTrue);
+  });
+
+  testWidgets('input is ignored while the first-run check is pending', (
+    tester,
+  ) async {
+    final store = _SlowStore();
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SlideMergeScreen(
+          tutorialStore: store,
+          gameFactory: (m) => SlideMergeGame(mode: m, random: math.Random(1)),
+        ),
+      ),
+    );
+    await _slide(tester);
+    await tester.dragFrom(const Offset(400, 600), const Offset(80, 0));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(_moves(tester), 0);
+
+    store.release.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('How to play'), findsOneWidget);
+    await tester.tap(find.text('Skip'));
+    await tester.pumpAndSettle();
+    await _slide(tester);
+    expect(_moves(tester), greaterThan(0));
+  });
+
+  testWidgets('F5 and Ctrl shortcuts are not swallowed by the card', (
+    tester,
+  ) async {
+    await _pump(tester, _FakeStore());
+    await tester.sendKeyEvent(LogicalKeyboardKey.f5);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(find.text('Next'), findsOneWidget);
+    expect(find.text('How to play'), findsOneWidget);
+  });
+
+  testWidgets('Ctrl combos and key repeat do not move the game', (
+    tester,
+  ) async {
+    await _pump(tester, _FakeStore(seen: true));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(_moves(tester), 0);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(_moves(tester), lessThanOrEqualTo(1));
   });
 
   testWidgets('? reopens at step 1 without resetting the game', (tester) async {
