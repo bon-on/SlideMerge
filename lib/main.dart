@@ -125,6 +125,10 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     // Ignore a stale answer if the player already opened it via "?".
     if (seen || session != _tutorialSession) {
       _syncGameplay();
+      // Autofocus could not land while focus was excluded during loading.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_tutorialOpen) _focus.requestFocus();
+      });
       return;
     }
     _openTutorial();
@@ -294,7 +298,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
           absorbing: !_tutorialChecked,
           // Keep keyboard focus (Tab, Enter) out of the game under the card.
           child: ExcludeFocus(
-            excluding: _tutorialOpen,
+            excluding: _tutorialOpen || !_tutorialChecked,
             child: _buildGame(context),
           ),
         ),
