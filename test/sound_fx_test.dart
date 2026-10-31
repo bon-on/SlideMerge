@@ -361,6 +361,20 @@ void main() {
       expect(player.played, ['assets/audio/slide.wav']);
     });
 
+    testWidgets('Space after using the toggle does not press it again', (
+      tester,
+    ) async {
+      final fx = SoundFx(player: _RecordingPlayer());
+      await _pump(tester, fx, _slideBoard);
+
+      await tester.tap(find.byTooltip('Sound on'));
+      await tester.pump();
+      expect(fx.userMuted, isTrue);
+      await _key(tester, LogicalKeyboardKey.space);
+      await _key(tester, LogicalKeyboardKey.enter);
+      expect(fx.userMuted, isTrue);
+    });
+
     for (final width in const [320.0, 360.0]) {
       testWidgets('header with the sound button fits at $width px', (
         tester,
