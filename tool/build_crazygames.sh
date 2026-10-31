@@ -49,6 +49,11 @@ if ! grep -q -e '--games-nav-height: 0px;' "$INDEX"; then
   exit 1
 fi
 
+if ! grep -q '"family":"Roboto"' "$OUT/assets/FontManifest.json"; then
+  echo "error: Roboto is not bundled (FontManifest.json)" >&2
+  exit 1
+fi
+
 # Debug symbol files are not needed at runtime.
 find "$OUT" -name '*.symbols' -delete
 

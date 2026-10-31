@@ -60,6 +60,31 @@
       text-decoration: none;
     }
     .games-home-link:focus-visible { outline: 3px solid #c9f36a; outline-offset: 2px; }
+    #game-loader {
+      position: fixed;
+      z-index: 1;
+      inset: var(--games-nav-height) 0 0 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      background: inherit;
+      color: #e8ecef;
+      font: 600 22px/1.2 system-ui, sans-serif;
+      transition: opacity .25s;
+      pointer-events: none;
+    }
+    #game-loader.done { opacity: 0; }
+    #game-loader .spinner {
+      width: 36px;
+      height: 36px;
+      border: 4px solid rgba(255, 255, 255, .2);
+      border-top-color: #c9f36a;
+      border-radius: 50%;
+      animation: game-loader-spin .9s linear infinite;
+    }
+    @keyframes game-loader-spin { to { transform: rotate(360deg); } }
     body {
       touch-action: none;
       -webkit-user-select: none;
@@ -73,6 +98,7 @@
     <a class="games-home-link" href="https://bon-on.github.io/" aria-label="게임 선택 화면으로 돌아가기">← 게임 목록</a>
   </nav>
   <div id="game-host"></div>
+  <div id="game-loader" role="status" aria-live="polite"><div class="spinner"></div><div>Slide Merge</div></div>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
@@ -84,6 +110,24 @@
         keys.forEach((key) => caches.delete(key));
       });
     }
+  </script>
+  <script>
+    // Hide the CSS loader once Flutter has painted its first frame.
+    (function () {
+      var loader = document.getElementById('game-loader');
+      if (!loader) return;
+      var hidden = false;
+      function hide() {
+        if (hidden) return;
+        hidden = true;
+        loader.classList.add('done');
+        setTimeout(function () { loader.remove(); }, 300);
+      }
+      window.addEventListener('flutter-first-frame', hide);
+      document.addEventListener('flutter-first-frame', hide);
+      // Safety net: never leave the loader over a running game.
+      setTimeout(hide, 120000);
+    })();
   </script>
   <script>
     {{flutter_js}}

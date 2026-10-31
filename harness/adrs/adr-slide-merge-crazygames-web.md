@@ -4,6 +4,7 @@ title: Use a build flag and platform adapter for the CrazyGames build
 status: accepted
 related_specs:
   - feature-slide-merge-crazygames
+  - feature-slide-merge-gamepix
 ---
 
 # ADR: Build flag and platform adapter for CrazyGames
@@ -20,3 +21,6 @@ Slide Merge ships to GitHub Pages and mobile without any portal code. CrazyGames
 ## Consequences
 - Pages, mobile and CrazyGames builds share one codebase without affecting each other.
 - The script relies on string substitutions in `index.html`, so it verifies the result and fails the build otherwise.
+
+## GamePix addendum
+GamePix builds (`--dart-define=GAMEPIX=true`, see `feature-slide-merge-gamepix`) reuse the no-op platform with `allowsResultRegistration == false` instead of an adapter: GamePix forbids third-party SDKs and external network use. The CrazyGames adapter is selected only by `CRAZYGAMES=true`.

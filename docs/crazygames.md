@@ -60,4 +60,4 @@ Calls are sent on transitions only. Leaderboard registration prompts are disable
 ## Known limits
 
 - Classic 4x4 and Relaxed 5x5 modes.
-- Material's default font fallback may still be fetched from a Google font CDN.
+- Roboto is bundled (`assets/fonts/`), so the app does not fetch it from a Google font CDN.
