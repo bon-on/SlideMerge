@@ -94,6 +94,7 @@ Future<void> _pump(
   required SlideMergeGame Function(GameMode) factory,
   SeaProgressStore? store,
   SoundFx? sound,
+  int missionSeed = 4,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -105,7 +106,7 @@ Future<void> _pump(
         gameFactory: factory,
         progressStore: store ?? MemorySeaProgressStore(),
         soundFx: sound ?? SoundFx(player: _Player()),
-        missionRandom: math.Random(4),
+        missionRandom: math.Random(missionSeed),
         // Portal-style: no leaderboard dialog on top of the summary.
         platform: const NoopGamePlatform(allowsResultRegistration: false),
       ),
@@ -242,6 +243,33 @@ void main() {
     expect(store.value.bestPower, 5);
     await tester.pumpAndSettle();
     expect(find.text('New creature!'), findsNothing);
+  });
+
+  testWidgets('mission XP is saved the moment a mission completes', (
+    tester,
+  ) async {
+    final store = MemorySeaProgressStore();
+    // Four merges in one move complete the x3 combo mission.
+    await _pump(
+      tester,
+      factory: _board([1, 1, 2, 2, 3, 3, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0]),
+      store: store,
+      missionSeed: 0, // combo x3, score 3,000, 80 moves
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Mission complete'), findsOneWidget);
+    expect(store.value.totalXp, 30);
+    expect(store.value.runs, 0); // the run itself is not over
+
+    // Restart banks the run; the mission XP is counted once.
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Restart'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(store.value.runs, 1);
+    expect(store.value.totalXp, 30 + (4 + 8 + 16 + 32) ~/ 20);
+    expect(find.text('+33 XP'), findsOneWidget);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('combo banner for two merges in one move', (tester) async {

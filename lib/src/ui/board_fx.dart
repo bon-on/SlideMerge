@@ -20,6 +20,10 @@ class FxTiming {
   static const Duration dangerPulse = Duration(milliseconds: 1300);
 }
 
+class _Pulse extends ChangeNotifier {
+  void _ping() => notifyListeners();
+}
+
 enum BannerStyle { combo, discover, mission, record, info }
 
 abstract class _Event {
@@ -153,10 +157,21 @@ class BoardFx extends ChangeNotifier {
     _owner = null;
   }
 
+  /// Notifies only while a tile pop or spawn is running (and once after),
+  /// so idle creature tiles do not repaint for banners or particles.
+  Listenable get tiles => _tiles;
+  final _Pulse _tiles = _Pulse();
+  bool _tilesWereActive = false;
+
   void _onTick(Duration elapsed) {
     _clock = _base + elapsed;
     _events.removeWhere((e) => _clock - e.start > e.length);
     if (_events.isEmpty) _ticker?.stop();
+    final tilesActive = _events.any((e) => e is _Pop || e is _Spawn);
+    if (tilesActive || _tilesWereActive) {
+      _tiles._ping();
+    }
+    _tilesWereActive = tilesActive;
     notifyListeners();
   }
 
@@ -207,8 +222,15 @@ class BoardFx extends ChangeNotifier {
     int? power,
   }) {
     // Keep at most two banners: the newest replaces the oldest.
+    // A discovery banner outlives later ones in the same move.
     final banners = _events.whereType<FxBanner>().toList();
-    if (banners.length >= 2) _events.remove(banners.first);
+    if (banners.length >= 2) {
+      final drop = banners.firstWhere(
+        (b) => b.style != BannerStyle.discover,
+        orElse: () => banners.first,
+      );
+      _events.remove(drop);
+    }
     _add(FxBanner(_clock, _nextSeed(), title, subtitle, style, power));
   }
 
@@ -224,6 +246,7 @@ class BoardFx extends ChangeNotifier {
   /// Drops every effect (restart, undo, mode switch).
   void clear() {
     _events.clear();
+    _tiles._ping();
     notifyListeners();
   }
 
@@ -236,7 +259,8 @@ class BoardFx extends ChangeNotifier {
 
   /// Scale of a real tile right now (pop after a merge, grow after a spawn).
   double tileScale(int tileId) {
-    for (final e in _events) {
+    // Newest first: a tile that merges again shows its latest pop.
+    for (final e in _events.reversed) {
       if (e is _Pop && e.tileId == tileId) {
         final f = _f(_age(e), FxTiming.slide, FxTiming.pop);
         if (f <= 0) return 1;
@@ -253,7 +277,7 @@ class BoardFx extends ChangeNotifier {
 
   /// Power a merged tile still shows while it travels (the old creature).
   int? shownPower(int tileId) {
-    for (final e in _events) {
+    for (final e in _events.reversed) {
       if (e is _Pop && e.tileId == tileId && _age(e) < FxTiming.slide) {
         return e.oldPower;
       }
@@ -282,6 +306,7 @@ class BoardFx extends ChangeNotifier {
   void dispose() {
     _ticker?.dispose();
     _ticker = null;
+    _tiles.dispose();
     super.dispose();
   }
 }

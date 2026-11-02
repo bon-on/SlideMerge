@@ -160,6 +160,10 @@ class SoundFx extends ChangeNotifier {
   bool _userInteracted = false;
   bool _musicPlaying = false;
 
+  // Bumped on every start/pause, so a late answer to an older start cannot
+  // clear the flag of a newer one.
+  int _musicRequest = 0;
+
   /// Whether the music loop is (believed to be) running.
   bool get isMusicPlaying => _musicPlaying;
   final Future<SharedPreferences> Function() _preferences;
@@ -264,13 +268,15 @@ class SoundFx extends ChangeNotifier {
       if (_musicAllowed) {
         if (_musicPlaying) return;
         _musicPlaying = true;
+        final request = ++_musicRequest;
         music
             .play(musicAsset, musicVolume)
             .then<bool>((ok) => ok, onError: (Object _) => false)
             .then((ok) {
-              if (!ok) _musicPlaying = false;
+              if (!ok && request == _musicRequest) _musicPlaying = false;
             });
       } else if (_musicPlaying) {
+        _musicRequest++;
         _musicPlaying = false;
         music.pause();
       }

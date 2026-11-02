@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:io';
 import 'dart:math' as math;
@@ -25,10 +26,13 @@ class _RecordingPlayer implements SoundPlayer {
 class _RecordingMusic implements MusicPlayer {
   final List<String> calls = <String>[];
   bool result = true;
+  Completer<bool>? pending;
 
   @override
   Future<bool> play(String asset, double volume) async {
     calls.add('play');
+    final wait = pending;
+    if (wait != null) return wait.future;
     return result;
   }
 
@@ -292,6 +296,23 @@ void main() {
       expect(m.calls, ['play', 'play']);
       expect(fx.isMusicPlaying, isTrue);
     });
+
+    test(
+      'a late failure of an old start keeps the newer one stoppable',
+      () async {
+        final first = Completer<bool>();
+        final m = _RecordingMusic()..pending = first;
+        final fx = music(m)..startMusic();
+        await fx.setUserMuted(true); // pause while the first start is pending
+        m.pending = null;
+        await fx.setUserMuted(false); // a second start succeeds
+        first.complete(false); // the browser rejects the first one late
+        await Future<void>.delayed(Duration.zero);
+        expect(fx.isMusicPlaying, isTrue);
+        await fx.setUserMuted(true);
+        expect(m.calls, ['play', 'pause', 'play', 'pause']);
+      },
+    );
 
     test('pauses while the app is hidden', () {
       final m = _RecordingMusic();

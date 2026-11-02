@@ -36,6 +36,24 @@ class RunOutcome {
   final int xpGained;
   final List<SeaTheme> newlyUnlockedThemes;
 
+  /// The same outcome, with [xp] earned earlier in the run (already part of
+  /// [current]) counted as gained by this run.
+  RunOutcome withEarlierXp(SeaProgress current, int xp) {
+    if (xp <= 0) return this;
+    final start = current.withTotalXp(current.totalXp - xp);
+    return RunOutcome(
+      before: start,
+      progress: progress,
+      xpGained: xpGained + xp,
+      newlyUnlockedThemes: [
+        for (final theme in SeaTheme.values)
+          if (start.level < theme.requiredLevel &&
+              progress.level >= theme.requiredLevel)
+            theme,
+      ],
+    );
+  }
+
   int get levelBefore => before.level;
   int get levelAfter => progress.level;
   bool get leveledUp => levelAfter > levelBefore;
@@ -125,6 +143,8 @@ class SeaProgress {
     if (!isThemeUnlocked(theme)) return this;
     return _copy(selectedTheme: theme);
   }
+
+  SeaProgress withTotalXp(int xp) => _copy(totalXp: xp < 0 ? 0 : xp);
 
   SeaProgress withXp(int xp) => xp <= 0 ? this : _copy(totalXp: totalXp + xp);
 

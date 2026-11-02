@@ -76,7 +76,9 @@ class _BoardViewState extends State<BoardView>
           ),
           Positioned.fill(
             child: IgnorePointer(
-              child: CustomPaint(painter: GhostPainter(widget.fx, geometry)),
+              child: RepaintBoundary(
+                child: CustomPaint(painter: GhostPainter(widget.fx, geometry)),
+              ),
             ),
           ),
           for (var index = 0; index < widget.cells.length; index++)
@@ -97,11 +99,13 @@ class _BoardViewState extends State<BoardView>
               ),
           Positioned.fill(
             child: IgnorePointer(
-              child: CustomPaint(
-                painter: FxOverlayPainter(
-                  widget.fx,
-                  geometry,
-                  dangerColor: palette.danger,
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: FxOverlayPainter(
+                    widget.fx,
+                    geometry,
+                    dangerColor: palette.danger,
+                  ),
                 ),
               ),
             ),
@@ -113,7 +117,7 @@ class _BoardViewState extends State<BoardView>
 }
 
 class _TilePainter extends CustomPainter {
-  _TilePainter(this.fx, this.id, this.power) : super(repaint: fx);
+  _TilePainter(this.fx, this.id, this.power) : super(repaint: fx.tiles);
 
   final BoardFx fx;
   final int id;

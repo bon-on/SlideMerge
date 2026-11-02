@@ -180,6 +180,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   int _runHighest = 0;
   int _runMerges = 0;
   int _runBestCombo = 0;
+  int _runMissionXp = 0;
   int _bestAtRunStart = 0;
   bool _runRecorded = false;
   RunSummaryData? _summary;
@@ -192,9 +193,16 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   void initState() {
     super.initState();
     _sound.addListener(_onSoundChanged);
-    if (widget.soundFx == null) _sound.load();
+    // Native builds need no gesture: read the saved mute choice before the
+    // music may start, so "sound off" never plays a note at launch.
+    if (widget.soundFx == null) {
+      _sound.load().whenComplete(() {
+        if (mounted) _sound.startMusic();
+      });
+    } else {
+      _sound.startMusic();
+    }
     widget.platform.setAudioMuteListener(_sound.refreshMute);
-    _sound.startMusic();
     _lifecycle = AppLifecycleListener(
       onStateChange: (state) => _sound.setAppVisible(
         state == AppLifecycleState.resumed ||
@@ -367,6 +375,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     _runHighest = _game.highestPower;
     _runMerges = 0;
     _runBestCombo = 0;
+    _runMissionXp = 0;
     _runRecorded = false;
     _bestAtRunStart = _bestScore;
     _summary = null;
@@ -385,9 +394,11 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       moves: _game.moves,
       merges: _runMerges,
       bestCombo: _runBestCombo,
-      missionXp: _missions.earnedXp,
     );
-    final outcome = _progress.applyRun(summary);
+    // Mission XP was already banked; show it as part of this run.
+    final outcome = _progress
+        .applyRun(summary)
+        .withEarlierXp(_progress, _runMissionXp);
     _changeProgress((p) => p.applyRun(summary).progress);
     if (showSummary) {
       _summary = RunSummaryData(
@@ -556,6 +567,9 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       ),
     );
     for (final m in done) {
+      // Mission XP is banked at once, so closing the tab mid-run keeps it.
+      _changeProgress((p) => p.withXp(m.xp));
+      _runMissionXp += m.xp;
       _fx.banner(
         'Mission complete',
         subtitle: '${m.label}  +${m.xp} XP',
@@ -656,7 +670,9 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   Widget build(BuildContext context) {
     final palette = _palette;
     return Listener(
+      // Touch browsers unlock audio on touchend, so try on both edges.
       onPointerDown: (_) => _sound.onUserInput(),
+      onPointerUp: (_) => _sound.onUserInput(),
       child: Stack(
         children: [
           Positioned.fill(child: SeaScenery(theme: palette.theme)),
