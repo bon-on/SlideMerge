@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
@@ -19,6 +20,23 @@ class _RecordingPlayer implements SoundPlayer {
 
   @override
   void dispose() => disposed = true;
+}
+
+class _RecordingMusic implements MusicPlayer {
+  final List<String> calls = <String>[];
+  bool result = true;
+
+  @override
+  Future<bool> play(String asset, double volume) async {
+    calls.add('play');
+    return result;
+  }
+
+  @override
+  void pause() => calls.add('pause');
+
+  @override
+  void dispose() => calls.add('dispose');
 }
 
 class _MutedPlatform extends NoopGamePlatform {
@@ -214,12 +232,106 @@ void main() {
           ).allMatches(entity.readAsStringSync()).map((m) => m.group(0)!),
         );
       }
-      // Only the Sfx.asset template exists in code; the list comes from the enum.
-      expect(used, isEmpty);
+      // Only the Sfx.asset template and the music loop are spelled out in
+      // code; the effect list comes from the enum.
+      expect(used, {SoundFx.musicAsset});
       final onDisk = Directory(
         'assets/audio',
       ).listSync().map((e) => e.path).where((p) => p.endsWith('.wav')).toSet();
-      expect(onDisk, Sfx.values.map((s) => s.asset).toSet());
+      expect(onDisk, {...Sfx.values.map((s) => s.asset), SoundFx.musicAsset});
+    });
+
+    test('music loop: 16 kHz mono 16-bit, under 1 MB', () {
+      final bytes = File(SoundFx.musicAsset).readAsBytesSync();
+      expect(bytes.length, lessThan(1024 * 1024));
+      final header = bytes.buffer.asByteData();
+      expect(header.getUint16(22, Endian.little), 1); // channels
+      expect(header.getUint32(24, Endian.little), 16000); // sample rate
+      expect(header.getUint16(34, Endian.little), 16); // bits per sample
+    });
+  });
+
+  group('music', () {
+    SoundFx music(_RecordingMusic m, {bool web = false, GamePlatform? p}) =>
+        SoundFx(
+          player: _RecordingPlayer(),
+          music: m,
+          musicNeedsGesture: web,
+          platform: p ?? const NoopGamePlatform(),
+        );
+
+    test('starts when wanted and stops for the user toggle', () async {
+      final m = _RecordingMusic();
+      final fx = music(m)..startMusic();
+      expect(m.calls, ['play']);
+      expect(fx.isMusicPlaying, isTrue);
+      await fx.setUserMuted(true);
+      expect(m.calls, ['play', 'pause']);
+      await fx.setUserMuted(false);
+      expect(m.calls, ['play', 'pause', 'play']);
+    });
+
+    test('web waits for the first user input', () {
+      final m = _RecordingMusic();
+      final fx = music(m, web: true)..startMusic();
+      expect(m.calls, isEmpty);
+      fx.onUserInput();
+      expect(m.calls, ['play']);
+      fx.onUserInput();
+      expect(m.calls, ['play']);
+    });
+
+    test('a refused start is retried on the next input', () async {
+      final m = _RecordingMusic()..result = false;
+      final fx = music(m, web: true)..startMusic();
+      fx.onUserInput();
+      await Future<void>.delayed(Duration.zero);
+      expect(fx.isMusicPlaying, isFalse);
+      m.result = true;
+      fx.onUserInput();
+      expect(m.calls, ['play', 'play']);
+      expect(fx.isMusicPlaying, isTrue);
+    });
+
+    test('pauses while the app is hidden', () {
+      final m = _RecordingMusic();
+      final fx = music(m)..startMusic();
+      fx.setAppVisible(false);
+      fx.setAppVisible(false);
+      fx.setAppVisible(true);
+      expect(m.calls, ['play', 'pause', 'play']);
+    });
+
+    test('follows the platform mute through refreshMute', () {
+      final m = _RecordingMusic();
+      final platform = _MutedPlatform()..muted = false;
+      final fx = music(m, p: platform)..startMusic();
+      platform.muted = true;
+      fx.refreshMute();
+      platform.muted = false;
+      fx.refreshMute();
+      expect(m.calls, ['play', 'pause', 'play']);
+    });
+
+    test('a muted start never plays; dispose stops it', () async {
+      final m = _RecordingMusic();
+      final fx = music(m);
+      await fx.setUserMuted(true);
+      fx.startMusic();
+      expect(m.calls, isEmpty);
+      await fx.setUserMuted(false);
+      fx.dispose();
+      expect(m.calls, ['play', 'dispose']);
+      fx.startMusic();
+      expect(m.calls, ['play', 'dispose']);
+    });
+
+    test('a test effects player gets no music by default', () {
+      // Nothing to observe except that it does not throw.
+      SoundFx(player: _RecordingPlayer())
+        ..startMusic()
+        ..onUserInput()
+        ..dispose();
     });
   });
 

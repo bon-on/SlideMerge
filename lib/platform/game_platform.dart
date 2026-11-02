@@ -25,6 +25,10 @@ abstract class GamePlatform {
   /// Whether the portal asks the game to stay silent (CrazyGames audio
   /// setting). Checked on every sound; false where no portal layer exists.
   bool get isAudioMuted => false;
+
+  /// Registers a callback for when [isAudioMuted] may have changed (portal
+  /// settings). Platforms without such events ignore it.
+  void setAudioMuteListener(void Function()? listener) {}
 }
 
 class NoopGamePlatform extends GamePlatform {

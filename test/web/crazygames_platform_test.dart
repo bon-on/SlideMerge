@@ -22,6 +22,10 @@ class _FakeSdk {
       ..setProperty(
         'gameplayStop'.toJS,
         (() => calls.add('gameplayStop')).toJS,
+      )
+      ..setProperty(
+        'addSettingsChangeListener'.toJS,
+        ((JSFunction listener) => settingsListener = listener).toJS,
       );
     final sdk = JSObject()
       ..setProperty('environment'.toJS, environment.toJS)
@@ -44,6 +48,13 @@ class _FakeSdk {
       settings.setProperty('muteAudio'.toJS, value.toJS);
 
   final List<String> calls = <String>[];
+  JSFunction? settingsListener;
+
+  /// Changes the setting the way the portal does and notifies the game.
+  void changeMute(bool value) {
+    muteAudio = value;
+    settingsListener?.callAsFunction(null, settings);
+  }
 }
 
 void _removeSdk() => globalContext.delete('CrazyGames'.toJS);
@@ -111,5 +122,25 @@ void main() {
     expect(platform.isAudioMuted, isTrue);
     sdk.muteAudio = false;
     expect(platform.isAudioMuted, isFalse);
+  });
+
+  test('settings changes reach the mute listener', () async {
+    final sdk = _FakeSdk();
+    final platform = CrazyGamesPlatform();
+    var notified = 0;
+    platform.setAudioMuteListener(() => notified++);
+    await platform.initialize();
+    expect(sdk.settingsListener, isNotNull);
+
+    sdk.changeMute(true);
+    expect(notified, 1);
+    expect(platform.isAudioMuted, isTrue);
+    sdk.changeMute(false);
+    expect(notified, 2);
+    expect(platform.isAudioMuted, isFalse);
+
+    platform.setAudioMuteListener(null);
+    sdk.changeMute(true);
+    expect(notified, 2);
   });
 }

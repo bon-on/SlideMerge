@@ -5,12 +5,37 @@ import UIKit
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var players: [AVAudioPlayer] = []
+  private var musicPlayer: AVAudioPlayer?
+  // True while the music loop should be audible (startLoop until stopLoop),
+  // so it can resume after a call or Siri interrupted the audio session.
+  private var musicWanted = false
+  private var interruptionObserver: NSObjectProtocol?
 
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    interruptionObserver = NotificationCenter.default.addObserver(
+      forName: AVAudioSession.interruptionNotification,
+      object: AVAudioSession.sharedInstance(),
+      queue: .main
+    ) { [weak self] notification in
+      self?.handleInterruption(notification)
+    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  private func handleInterruption(_ notification: Notification) {
+    guard
+      let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+      let type = AVAudioSession.InterruptionType(rawValue: raw)
+    else {
+      return
+    }
+    if type == .ended, musicWanted, let player = musicPlayer, !player.isPlaying {
+      configureAudioSession()
+      player.play()
+    }
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
@@ -41,6 +66,16 @@ import UIKit
           let volume = (args?["volume"] as? Double).map { Float($0) } ?? 0.7
           self.playSound(asset: asset, volume: volume)
         }
+        result(nil)
+      case "startLoop":
+        let args = call.arguments as? [String: Any]
+        if let asset = args?["asset"] as? String {
+          let volume = (args?["volume"] as? Double).map { Float($0) } ?? 0.4
+          self.startLoop(asset: asset, volume: volume)
+        }
+        result(nil)
+      case "stopLoop":
+        self.stopLoop()
         result(nil)
       case "disposeAudio":
         self.disposeAudio()
@@ -78,7 +113,33 @@ import UIKit
     }
   }
 
+  private func startLoop(asset: String, volume: Float) {
+    stopLoop()
+    configureAudioSession()
+    guard let url = assetURL(for: asset) else {
+      return
+    }
+
+    do {
+      let player = try AVAudioPlayer(contentsOf: url)
+      player.numberOfLoops = -1
+      player.volume = volume
+      player.prepareToPlay()
+      player.play()
+      musicPlayer = player
+      musicWanted = true
+    } catch {
+    }
+  }
+
+  private func stopLoop() {
+    musicWanted = false
+    musicPlayer?.stop()
+    musicPlayer = nil
+  }
+
   private func disposeAudio() {
+    stopLoop()
     players.forEach { $0.stop() }
     players.removeAll()
   }
