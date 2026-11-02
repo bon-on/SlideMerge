@@ -141,7 +141,7 @@ void paintCreatureTile(
   }
   if (card) {
     if (silhouette) {
-      canvas.drawRRect(rrect, Paint()..color = const Color(0x33FFFFFF));
+      canvas.drawRRect(rrect, Paint()..color = const Color(0x1F2D4A63));
       canvas.drawRRect(
         rrect.deflate(side * 0.01),
         Paint()

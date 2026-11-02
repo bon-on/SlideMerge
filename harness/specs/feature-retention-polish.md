@@ -64,7 +64,8 @@ platform"으로 거절했다. Slide Merge는 숫자가 적힌 색 사각형뿐�
      CrazyGames `muteAudio`(설정 변경 리스너 포함)를 따른다. 하나의 토글이 효과음과 음악을 함께 끈다.
      iOS/Android는 네이티브 채널 `startLoop`/`stopLoop`로 반복 재생한다(iOS 인터럽션 후 재개).
    - 새 효과음: combo, discover(새 생물), mission(미션 달성), level_up(결과 화면에서 레벨 상승). 이동 한 번에는 효과음 하나만:
-     game_over > discover > mission > combo > merge > slide 순으로 우선한다.
+     game_over > discover > mission > combo(한 번에 3회 이상 머지) > merge > slide 순으로 우선한다.
+     레벨 상승음은 결과 화면의 XP 바가 레벨을 넘을 때, 또는 재시작으로 레벨이 오를 때 한 번 재생한다.
    - 이 프로젝트에는 광고 흐름이 없다(CrazyGames 빌드도 광고 없음). 광고가 생기면 광고 동안 음악을 멈춰야 한다.
 
 ## Acceptance Criteria

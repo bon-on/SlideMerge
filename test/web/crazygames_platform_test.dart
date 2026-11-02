@@ -19,10 +19,7 @@ class _FakeSdk {
         'gameplayStart'.toJS,
         (() => calls.add('gameplayStart')).toJS,
       )
-      ..setProperty(
-        'gameplayStop'.toJS,
-        (() => calls.add('gameplayStop')).toJS,
-      )
+      ..setProperty('gameplayStop'.toJS, (() => calls.add('gameplayStop')).toJS)
       ..setProperty(
         'addSettingsChangeListener'.toJS,
         ((JSFunction listener) => settingsListener = listener).toJS,
