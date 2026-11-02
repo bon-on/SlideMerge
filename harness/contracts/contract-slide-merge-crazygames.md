@@ -5,6 +5,7 @@ status: active
 related_specs:
   - feature-slide-merge-crazygames
   - feature-sound-effects
+  - feature-retention-polish
 evidence_files:
   - docs/crazygames.md
   - reports/slide-merge-crazygames-verification.md

@@ -6,6 +6,7 @@ related_specs:
   - feature-slide-merge-crazygames
   - feature-slide-merge-gamepix
   - feature-sound-effects
+  - feature-retention-polish
 ---
 
 # ADR: Build flag and platform adapter for CrazyGames

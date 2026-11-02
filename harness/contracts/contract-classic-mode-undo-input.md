@@ -4,6 +4,7 @@ title: Deliver classic 4x4 mode, undo twist, and improved input
 status: active
 related_specs:
   - feature-classic-mode-undo-input
+  - feature-retention-polish
 evidence_files:
   - reports/classic-mode-undo-input-audit.md
 ---

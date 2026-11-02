@@ -4,6 +4,7 @@ title: Deliver a skippable first-run tutorial that never affects play
 status: active
 related_specs:
   - feature-how-to-play-tutorial
+  - feature-retention-polish
 evidence_files:
   - reports/how-to-play-tutorial-verification.md
 ---
