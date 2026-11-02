@@ -33,6 +33,67 @@ List<int> row(SlideMergeGame g, int r) => [
 ];
 
 void main() {
+  group('move report', () {
+    test('records origins, merges with both sources, gain and spawn', () {
+      final g = game();
+      load(g, [
+        [1, 1, 0, 2],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ]);
+      expect(g.move(Direction.left), isTrue);
+      final r = g.lastMove!;
+      expect(r.direction, Direction.left);
+      expect(r.gained, 4);
+      expect(r.merges, hasLength(1));
+      final m = r.merges.single;
+      expect(m.keptId, 100);
+      expect(m.keptFrom, 0);
+      expect(m.consumedId, 101);
+      expect(m.consumedFrom, 1);
+      expect(m.target, 0);
+      expect(m.power, 2);
+      expect(r.from[102], 3);
+      expect(g.cells[1]?.id, 102);
+      expect(r.spawnedId, g.lastSpawnedId);
+      expect(g.cells[r.spawnedIndex!]?.id, r.spawnedId);
+      expect(g.highestPower, 2);
+    });
+
+    test('reports two merges in one line toward the right wall', () {
+      final g = game();
+      load(g, [
+        [1, 1, 1, 1],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ]);
+      g.move(Direction.right);
+      final targets = g.lastMove!.merges.map((m) => m.target).toList();
+      expect(targets, [3, 2]);
+      expect(row(g, 0).sublist(2), [2, 2]);
+    });
+
+    test('is cleared by undo and reset', () {
+      final g = game();
+      load(g, [
+        [1, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ]);
+      g.move(Direction.right);
+      expect(g.lastMove, isNotNull);
+      expect(g.undo(), isTrue);
+      expect(g.lastMove, isNull);
+      g.move(Direction.right);
+      g.reset();
+      expect(g.lastMove, isNull);
+      expect(g.emptyCells, 14);
+    });
+  });
+
   test('modes: classic is 4x4 90/10, relaxed is 5x5', () {
     expect(game().size, 4);
     expect(GameMode.classic.tier2Chance, 0.10);
