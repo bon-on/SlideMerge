@@ -18,7 +18,9 @@ Sea Turtle, Dolphin, Whale (2048), Narwhal, Sea Dragon and the Star Whale
 ## Progress between runs
 
 - **Missions**: three per run (make a creature, merge N times, combo, score,
-  moves); each gives bonus XP.
+  moves); each gives bonus XP. Targets scale with player level and board
+  size: a Lv1 player gets goals one normal run reaches (e.g. make a 32, merge
+  10 times, combo x2, score 500); harder ones unlock with level.
 - **Player level**: XP = score / 20 + mission XP + 10 for runs of 10+ moves.
   Levels unlock board themes: Lagoon (Lv1), Coral Reef (Lv3), Polar Sea (Lv6),
   Moonlit Deep (Lv10). Pick one in the album.

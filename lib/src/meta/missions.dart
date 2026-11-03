@@ -90,27 +90,103 @@ String groupThousands(int value) {
 class MissionSet {
   MissionSet(this.missions);
 
-  /// Picks three different kinds with a random difficulty each.
-  factory MissionSet.forRun({required int boardSize, math.Random? random}) {
+  /// Highest difficulty tier.
+  static const int maxTier = 3;
+
+  /// Mission XP per tier (harder goals pay more).
+  static const List<int> tierXp = [20, 35, 55, 80];
+
+  /// Difficulty tiers a player of [level] can draw. A Lv1-2 newcomer only
+  /// gets tier 0 goals, which one normal run completes.
+  static List<int> tiersForLevel(int level) {
+    if (level <= 2) return const [0];
+    if (level <= 5) return const [0, 1];
+    if (level <= 9) return const [1, 2];
+    return const [2, 3];
+  }
+
+  /// Target of [kind] at [tier] on a board of [boardSize].
+  ///
+  /// Tier 0 (4x4): make a 16 or 32, merge 10-15 times, combo x2, score
+  /// 300-500, 40-60 moves. Combo goals are capped (x3 on 4x4, x4 on 5x5):
+  /// more merges in one move are rare even for good players.
+  static int targetFor(
+    MissionKind kind,
+    int tier,
+    int boardSize,
+    math.Random rng,
+  ) {
+    final t = tier.clamp(0, maxTier);
+    final big = boardSize >= 5;
+    int pick(List<int> options) => options[rng.nextInt(options.length)];
+    int scaled(int value) => big ? (value * 3 ~/ 2) : value;
+    switch (kind) {
+      case MissionKind.reachTile:
+        final power = pick(
+          const [
+            [4, 5],
+            [6, 7],
+            [8],
+            [9],
+          ][t],
+        );
+        return big && t > 0 ? power + 1 : power;
+      case MissionKind.merges:
+        return scaled(
+          pick(
+            const [
+              [10, 15],
+              [25, 35],
+              [50, 70],
+              [90],
+            ][t],
+          ),
+        );
+      case MissionKind.combo:
+        final combo = const [2, 2, 3, 3][t] + (big && t >= 2 ? 1 : 0);
+        return math.min(combo, big ? 4 : 3);
+      case MissionKind.score:
+        return scaled(
+          pick(
+            const [
+              [300, 500],
+              [1000, 1500],
+              [2500, 3500],
+              [5000],
+            ][t],
+          ),
+        );
+      case MissionKind.moves:
+        return scaled(
+          pick(
+            const [
+              [40, 60],
+              [100, 150],
+              [200],
+              [300],
+            ][t],
+          ),
+        );
+    }
+  }
+
+  /// Picks three different kinds with a difficulty fitted to [level].
+  factory MissionSet.forRun({
+    required int boardSize,
+    int level = 1,
+    math.Random? random,
+  }) {
     final rng = random ?? math.Random();
     final kinds = List<MissionKind>.of(MissionKind.values)..shuffle(rng);
-    final big = boardSize >= 5;
+    final tiers = tiersForLevel(level);
     final picked = <Mission>[];
     for (final kind in kinds.take(3)) {
-      final tier = rng.nextInt(3);
-      final targets = switch (kind) {
-        MissionKind.reachTile => big ? const [7, 8, 9] : const [6, 7, 8],
-        MissionKind.merges => big ? const [40, 70, 110] : const [25, 45, 70],
-        MissionKind.combo => big ? const [3, 4, 5] : const [3, 3, 4],
-        MissionKind.score =>
-          big ? const [1500, 3000, 6000] : const [800, 1600, 3000],
-        MissionKind.moves => big ? const [150, 250, 400] : const [80, 150, 250],
-      };
+      final tier = tiers[rng.nextInt(tiers.length)];
       picked.add(
         Mission(
           kind: kind,
-          target: targets[tier],
-          xp: const [30, 50, 80][tier],
+          target: targetFor(kind, tier, boardSize, rng),
+          xp: tierXp[tier],
         ),
       );
     }

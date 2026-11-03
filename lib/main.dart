@@ -177,6 +177,9 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   // Current run.
   int _generation = 0;
   late MissionSet _missions;
+
+  /// Player level the current missions were fitted to.
+  int _missionLevel = 1;
   int _runHighest = 0;
   int _runMerges = 0;
   int _runBestCombo = 0;
@@ -241,6 +244,18 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     setState(() {
       _progress = loaded;
       _progressLoaded = true;
+      // The first run was set up before the level was known: refit its
+      // missions while it has not started yet.
+      if (_game.moves == 0 &&
+          _missions.completedCount == 0 &&
+          _missionLevel != _progress.level) {
+        _missionLevel = _progress.level;
+        _missions = MissionSet.forRun(
+          boardSize: _game.size,
+          level: _progress.level,
+          random: widget.missionRandom,
+        );
+      }
     });
     if (replay) unawaited(widget.progressStore.save(_progress));
   }
@@ -368,8 +383,10 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   /// Resets the per-run state for the board currently in [_game].
   void _startRun() {
     _generation++;
+    _missionLevel = _progress.level;
     _missions = MissionSet.forRun(
       boardSize: _game.size,
+      level: _missionLevel,
       random: widget.missionRandom,
     );
     _runHighest = _game.highestPower;

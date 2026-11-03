@@ -135,22 +135,92 @@ void main() {
   });
 
   group('Missions', () {
-    test('three different kinds with targets fitted to the board', () {
+    test('three different kinds per run on both boards', () {
       for (var seed = 0; seed < 30; seed++) {
-        final set = MissionSet.forRun(boardSize: 4, random: math.Random(seed));
-        expect(set.missions, hasLength(3));
-        expect(set.missions.map((m) => m.kind).toSet(), hasLength(3));
-        for (final m in set.missions) {
-          expect(m.completed, isFalse);
-          expect(m.label, isNotEmpty);
-          if (m.kind == MissionKind.combo) expect(m.target, greaterThan(2));
-          if (m.kind == MissionKind.reachTile) {
-            expect(m.target, greaterThanOrEqualTo(6));
+        for (final size in const [4, 5]) {
+          final set = MissionSet.forRun(
+            boardSize: size,
+            level: 1 + seed % 12,
+            random: math.Random(seed),
+          );
+          expect(set.missions, hasLength(3));
+          expect(set.missions.map((m) => m.kind).toSet(), hasLength(3));
+          for (final m in set.missions) {
+            expect(m.completed, isFalse);
+            expect(m.label, isNotEmpty);
           }
         }
       }
-      final big = MissionSet.forRun(boardSize: 5, random: math.Random(1));
-      expect(big.missions, hasLength(3));
+    });
+
+    test('a Lv1 newcomer gets goals one normal 4x4 run reaches', () {
+      for (var seed = 0; seed < 200; seed++) {
+        final set = MissionSet.forRun(
+          boardSize: 4,
+          level: 1,
+          random: math.Random(seed),
+        );
+        for (final m in set.missions) {
+          expect(m.xp, MissionSet.tierXp[0]);
+          final max = switch (m.kind) {
+            MissionKind.reachTile => 5, // 32
+            MissionKind.merges => 15,
+            MissionKind.combo => 2,
+            MissionKind.score => 500,
+            MissionKind.moves => 60,
+          };
+          expect(m.target, lessThanOrEqualTo(max), reason: m.label);
+        }
+      }
+    });
+
+    test('targets grow with level and board size, combos stay capped', () {
+      int maxTarget(MissionKind kind, int level, int size) {
+        var best = 0;
+        for (var seed = 0; seed < 300; seed++) {
+          final tiers = MissionSet.tiersForLevel(level);
+          final tier = tiers[seed % tiers.length];
+          best = math.max(
+            best,
+            MissionSet.targetFor(kind, tier, size, math.Random(seed)),
+          );
+        }
+        return best;
+      }
+
+      for (final kind in MissionKind.values) {
+        for (final size in const [4, 5]) {
+          final lv1 = maxTarget(kind, 1, size);
+          final lv4 = maxTarget(kind, 4, size);
+          final lv7 = maxTarget(kind, 7, size);
+          final lv12 = maxTarget(kind, 12, size);
+          expect(lv1, lessThanOrEqualTo(lv4), reason: '$kind $size');
+          expect(lv4, lessThanOrEqualTo(lv7), reason: '$kind $size');
+          expect(lv7, lessThanOrEqualTo(lv12), reason: '$kind $size');
+          if (kind != MissionKind.combo) {
+            expect(lv12, greaterThan(lv1), reason: '$kind $size');
+          }
+        }
+        expect(
+          maxTarget(kind, 4, 5),
+          greaterThanOrEqualTo(maxTarget(kind, 4, 4)),
+        );
+      }
+      expect(maxTarget(MissionKind.combo, 99, 4), 3);
+      expect(maxTarget(MissionKind.combo, 99, 5), 4);
+      expect(MissionSet.tiersForLevel(1), [0]);
+      expect(MissionSet.tiersForLevel(2), [0]);
+      expect(MissionSet.tiersForLevel(3), contains(1));
+      expect(MissionSet.tiersForLevel(10), contains(MissionSet.maxTier));
+    });
+
+    test('higher levels pay more XP per mission', () {
+      int xpAt(int level) => MissionSet.forRun(
+        boardSize: 4,
+        level: level,
+        random: math.Random(1),
+      ).missions.map((m) => m.xp).reduce(math.min);
+      expect(xpAt(12), greaterThan(xpAt(1)));
     });
 
     test('progress never drops and completion is reported once', () {

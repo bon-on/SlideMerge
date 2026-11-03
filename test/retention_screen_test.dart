@@ -210,7 +210,12 @@ void main() {
 
   testWidgets('restarting mid-run awards XP once and shows it', (tester) async {
     final store = MemorySeaProgressStore();
-    await _pump(tester, factory: _discoverBoard, store: store);
+    await _pump(
+      tester,
+      factory: _discoverBoard,
+      store: store,
+      missionSeed: 0, // no mission completes on this single merge
+    );
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pump(const Duration(milliseconds: 50));
     await tester.tap(find.byTooltip('Restart'));
@@ -254,12 +259,12 @@ void main() {
       tester,
       factory: _board([1, 1, 2, 2, 3, 3, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0]),
       store: store,
-      missionSeed: 0, // combo x3, score 3,000, 80 moves
+      missionSeed: 0, // Lv1: combo x2, score 500, 60 moves
     );
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Mission complete'), findsOneWidget);
-    expect(store.value.totalXp, 30);
+    expect(store.value.totalXp, 20);
     expect(store.value.runs, 0); // the run itself is not over
 
     // Restart banks the run; the mission XP is counted once.
@@ -267,9 +272,31 @@ void main() {
     await tester.tap(find.byTooltip('Restart'));
     await tester.pump(const Duration(milliseconds: 50));
     expect(store.value.runs, 1);
-    expect(store.value.totalXp, 30 + (4 + 8 + 16 + 32) ~/ 20);
-    expect(find.text('+33 XP'), findsOneWidget);
+    expect(store.value.totalXp, 20 + (4 + 8 + 16 + 32) ~/ 20);
+    expect(find.text('+23 XP'), findsOneWidget);
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('a Lv1 run gets newcomer missions; a Lv10 run harder ones', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      factory: (m) => SlideMergeGame(mode: m, random: math.Random(1)),
+      missionSeed: 0,
+    );
+    expect(find.text('Combo x2 in one move'), findsOneWidget);
+    expect(find.text('Score 500'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await _pump(
+      tester,
+      factory: (m) => SlideMergeGame(mode: m, random: math.Random(1)),
+      store: MemorySeaProgressStore(const SeaProgress.initial().withXp(5000)),
+      missionSeed: 0,
+    );
+    expect(find.text('Combo x2 in one move'), findsNothing);
+    expect(find.text('Score 500'), findsNothing);
+    expect(find.textContaining(RegExp(r'x3|Score [2-5],')), findsWidgets);
   });
 
   testWidgets('combo banner for two merges in one move', (tester) async {
@@ -303,7 +330,12 @@ void main() {
     final store = _SlowStore(
       const SeaProgress.initial().withXp(500).withTile(9),
     );
-    await _pump(tester, factory: _discoverBoard, store: store);
+    await _pump(
+      tester,
+      factory: _discoverBoard,
+      store: store,
+      missionSeed: 0, // no mission XP in this move
+    );
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pump(const Duration(milliseconds: 50));
     expect(store.saveCount, 0);
