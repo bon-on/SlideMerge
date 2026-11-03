@@ -6,6 +6,7 @@ related_specs:
   - feature-slide-merge-crazygames
   - feature-sound-effects
   - feature-retention-polish
+  - feature-crazygames-cloud-save
 evidence_files:
   - docs/crazygames.md
   - reports/slide-merge-crazygames-verification.md
@@ -21,7 +22,7 @@ Produce an upload-ready CrazyGames web bundle from the same Flutter codebase.
 - Gameplay start/stop calls from the game screen on transitions.
 - `tool/build_crazygames.sh` and `docs/crazygames.md`.
 
-Excluded: gameplay changes, ads, Data/User modules, portal upload.
+Excluded: gameplay changes, ads, portal upload. (The Data/User modules are covered for progress saving only by `feature-crazygames-cloud-save`.)
 
 ## Done Criteria
 - `flutter analyze`, `flutter test` and `flutter test --platform chrome test/web` pass.

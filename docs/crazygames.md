@@ -54,6 +54,7 @@ Sound: effects are muted while `SDK.game.settings.muteAudio` is true (read on ev
 ## Upload checklist
 
 - [ ] Submit through Basic Launch (ads are off there).
+- [ ] Progress Save: choose "Yes, using the Data Module from the CrazyGames SDK" (see Known limits).
 - [ ] Orientation: portrait. On desktop the game is centered in a narrow column.
 - [ ] Input: Swipe (touch or mouse drag), arrow keys or WASD to slide; Z or U undoes.
 - [ ] Covers to prepare (not created yet): 1920x1080, 800x1200, 800x800.
@@ -61,5 +62,9 @@ Sound: effects are muted while `SDK.game.settings.muteAudio` is true (read on ev
 
 ## Known limits
 
+- Progress is saved through the SDK Data module (`feature-crazygames-cloud-save`). On the portal submission screen, **Progress Save** must be set to "Yes, using the Data Module from the CrazyGames SDK"; otherwise the Data module is disabled and progress stays in browser localStorage only.
+  - All preferences live in one Data module key, `prefs_v1`, as `{rev, owner, values}`, and are mirrored to localStorage. The localStorage item `cg_prefs_stamp_v1` records the mirror's owner (username, null for guests) and revision.
+  - On start, a local mirror of the same player with an equal or higher revision wins; otherwise the account copy is used. Another player's mirror is never used. Progress from before this feature is adopted only while no account copy exists.
+  - A login or logout (`user.addAuthListener`) to a different player reloads the page. If the initial user cannot be determined, cloud save stays off.
 - Classic 4x4 and Relaxed 5x5 modes.
 - Roboto is bundled (`assets/fonts/`), so the app does not fetch it from a Google font CDN.

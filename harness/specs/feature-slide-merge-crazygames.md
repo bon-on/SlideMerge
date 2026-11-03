@@ -30,7 +30,7 @@ The GitHub Pages build cannot be uploaded to the CrazyGames portal as is: the po
 - No ads of any kind in the CrazyGames bundle (Basic Launch forbids them). The game has no ad network.
 - `tool/build_crazygames.sh` produces `build/crazygames/` and `build/slide-merge-crazygames.zip` with `<base href="./">`, the SDK script before the Flutter loader, `*.symbols` removed, at most 1500 files and 50MB.
 
-Out of scope: gameplay or rules changes, rewarded/banner ads, CrazyGames Data/User modules, portal upload.
+Out of scope: gameplay or rules changes, rewarded/banner ads, portal upload. (The Data/User modules were later added for progress saving only by `feature-crazygames-cloud-save`.)
 
 ## Acceptance Criteria
 - `flutter analyze` and `flutter test` pass; `flutter test --platform chrome test/web` passes.
