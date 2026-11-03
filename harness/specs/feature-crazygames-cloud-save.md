@@ -17,7 +17,7 @@ required_evidence:
 # 기능 명세: CrazyGames 계정 저장
 
 ## Problem
-모든 진행도(최고 점수, XP, 도감, 테마, 튜토리얼, 소리 설정)는 `shared_preferences`, 즉 브라우저 localStorage에만 있다.
+모든 진행도(모드별 최고 점수, XP·레벨, 도감, 최고 합성 단계, 선택 테마, 판 수, 튜토리얼 확인 여부, 소리 설정)는 `shared_preferences`, 즉 브라우저 localStorage에만 있다.
 CrazyGames에 로그인한 플레이어도 기기나 브라우저를 바꾸면 진행도가 사라진다. CrazyGames SDK의 Data 모듈은
 로그인 사용자의 데이터를 계정에 동기화하고, 게스트는 localStorage에 두었다가 로그인 시 계정으로 옮긴다.
 
