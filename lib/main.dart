@@ -13,6 +13,7 @@ import 'src/art/creature_art.dart';
 import 'src/art/sea_palette.dart';
 import 'src/art/sea_scenery.dart';
 import 'src/audio/sound_fx.dart';
+import 'src/meta/active_run.dart';
 import 'src/meta/missions.dart';
 import 'src/meta/sea_progress.dart';
 import 'src/meta/sea_progress_store.dart';
@@ -162,17 +163,19 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   int _tutorialSession = 0;
   // Gameplay events wait until the first-run tutorial check has answered.
   bool _tutorialChecked = false;
+  bool _appActive =
+      WidgetsBinding.instance.lifecycleState == null ||
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
   bool _gameplayActive = false;
   bool _albumOpen = false;
   late final SoundFx _sound =
       widget.soundFx ?? SoundFx(platform: widget.platform);
   late final AppLifecycleListener _lifecycle;
 
-  // Meta progress. Changes made before the stored value has loaded are kept
-  // in _pendingProgress and replayed onto it, so nothing is overwritten.
+  // Input waits for persisted progress before installing the active attempt.
   SeaProgress _progress = const SeaProgress.initial();
   bool _progressLoaded = false;
-  final List<SeaProgress Function(SeaProgress)> _pendingProgress = [];
+  Future<void> _saveTail = Future<void>.value();
 
   // Current run.
   int _generation = 0;
@@ -206,12 +209,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       _sound.startMusic();
     }
     widget.platform.setAudioMuteListener(_sound.refreshMute);
-    _lifecycle = AppLifecycleListener(
-      onStateChange: (state) => _sound.setAppVisible(
-        state == AppLifecycleState.resumed ||
-            state == AppLifecycleState.inactive,
-      ),
-    );
+    _lifecycle = AppLifecycleListener(onStateChange: _onAppLifecycleChanged);
     HardwareKeyboard.instance.addHandler(_onAnyKey);
     _game = _newGame(GameMode.classic);
     _startRun();
@@ -236,17 +234,29 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       loaded = await widget.progressStore.load();
     } catch (_) {}
     if (!mounted) return;
-    final replay = _pendingProgress.isNotEmpty;
-    for (final change in _pendingProgress) {
-      loaded = change(loaded);
-    }
-    _pendingProgress.clear();
     setState(() {
       _progress = loaded;
       _progressLoaded = true;
+      final restored = ActiveRun.restore(
+        loaded.activeRun,
+        totalXp: loaded.totalXp,
+      );
+      if (restored != null) {
+        _game = restored.game;
+        _missions = restored.missions;
+        _missionLevel = restored.missionLevel;
+        _runHighest = restored.highest;
+        _runMerges = restored.merges;
+        _runBestCombo = restored.bestCombo;
+        _runMissionXp = restored.missionXp;
+        _bestAtRunStart = restored.bestAtStart;
+        _best[_mode.id] = math.max(_bestScore, _game.score);
+        _fx.danger = _inDanger;
+      }
       // The first run was set up before the level was known: refit its
       // missions while it has not started yet.
-      if (_game.moves == 0 &&
+      if (restored == null &&
+          _game.moves == 0 &&
           _missions.completedCount == 0 &&
           _missionLevel != _progress.level) {
         _missionLevel = _progress.level;
@@ -257,17 +267,37 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
         );
       }
     });
-    if (replay) unawaited(widget.progressStore.save(_progress));
+    _persistAttempt();
+    _syncGameplay();
+    _refocusLater();
   }
 
-  /// Applies [change] now and persists it (or queues it until loaded).
+  /// Resolve all changes in an action before capturing the combined save.
   void _changeProgress(SeaProgress Function(SeaProgress) change) {
     _progress = change(_progress);
-    if (_progressLoaded) {
-      unawaited(widget.progressStore.save(_progress));
-    } else {
-      _pendingProgress.add(change);
-    }
+  }
+
+  void _persistAttempt() {
+    if (!_progressLoaded) return;
+    final run = _runRecorded
+        ? null
+        : ActiveRun(
+            game: _game,
+            missions: _missions,
+            missionLevel: _missionLevel,
+            highest: _runHighest,
+            merges: _runMerges,
+            bestCombo: _runBestCombo,
+            missionXp: _runMissionXp,
+            bestAtStart: _bestAtRunStart,
+          ).toJson();
+    _progress = _progress.withActiveRun(run);
+    final captured = _progress;
+    _saveTail = _saveTail.then((_) async {
+      try {
+        await widget.progressStore.save(captured);
+      } catch (_) {}
+    });
   }
 
   /// Any key anywhere counts as user input (browsers unlock audio on it).
@@ -306,7 +336,12 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   /// open and the board still has a move.
   void _syncGameplay() {
     final wantActive =
-        _tutorialChecked && !_tutorialOpen && !_albumOpen && !_game.isGameOver;
+        _appActive &&
+        _progressLoaded &&
+        _tutorialChecked &&
+        !_tutorialOpen &&
+        !_albumOpen &&
+        !_game.isGameOver;
     if (wantActive == _gameplayActive) return;
     _gameplayActive = wantActive;
     try {
@@ -348,7 +383,9 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   }
 
   void _selectTheme(SeaTheme theme) {
+    if (!_progressLoaded) return;
     setState(() => _changeProgress((p) => p.withTheme(theme)));
+    _persistAttempt();
   }
 
   void _onSoundChanged() {
@@ -359,6 +396,12 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     _sound.toggle();
     // Keep arrow keys working on the board after clicking the button.
     _focus.requestFocus();
+  }
+
+  void _onAppLifecycleChanged(AppLifecycleState state) {
+    _appActive = state == AppLifecycleState.resumed;
+    _sound.setAppVisible(_appActive);
+    _syncGameplay();
   }
 
   @override
@@ -468,6 +511,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   }
 
   void _restart() {
+    if (!_progressLoaded) return;
     _offerResultIfNeeded(force: true);
     RunOutcome? outcome;
     setState(() {
@@ -477,11 +521,13 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       _startRun();
       _xpBanner(outcome);
     });
+    _persistAttempt();
     _syncGameplay();
     _refocusLater();
   }
 
   void _setMode(GameMode mode) {
+    if (!_progressLoaded) return;
     if (mode.id == _mode.id) return;
     _offerResultIfNeeded(force: true);
     setState(() {
@@ -491,6 +537,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       _startRun();
       _xpBanner(outcome);
     });
+    _persistAttempt();
     _syncGameplay();
     _refocusLater();
   }
@@ -502,7 +549,12 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   }
 
   bool get _boardBlocked =>
-      _tutorialOpen || !_tutorialChecked || _albumOpen || _summary != null;
+      !_appActive ||
+      !_progressLoaded ||
+      _tutorialOpen ||
+      !_tutorialChecked ||
+      _albumOpen ||
+      _summary != null;
 
   void _undo() {
     if (_boardBlocked) return;
@@ -515,7 +567,10 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
         _fx.danger = _inDanger;
       }
     });
-    if (undone) _sound.play(Sfx.undo);
+    if (undone) {
+      _sound.play(Sfx.undo);
+      _persistAttempt();
+    }
     _syncGameplay();
   }
 
@@ -573,6 +628,8 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       _fx.banner('Combo x$merges', style: BannerStyle.combo);
     }
 
+    // A spawned tier-two tile also counts toward the run's highest tile.
+    _runHighest = math.max(_runHighest, _game.highestPower);
     // Missions.
     final done = _missions.update(
       RunStats(
@@ -619,6 +676,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       if (over && !_game.canUndo) _finishRun(showSummary: true);
     });
     _syncGameplay();
+    _persistAttempt();
     // Scores are only comparable within one mode: Classic feeds the leaderboard.
     _offerResultIfNeeded();
   }

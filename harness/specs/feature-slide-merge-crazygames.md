@@ -33,6 +33,7 @@ The GitHub Pages build cannot be uploaded to the CrazyGames portal as is: the po
 Out of scope: gameplay or rules changes, rewarded/banner ads, portal upload. (The Data/User modules were later added for progress saving only by `feature-crazygames-cloud-save`.)
 
 ## Acceptance Criteria
+- Losing app/tab focus stops SDK gameplay once and pauses active timers/simulation; resume starts only when no tutorial/menu/result is open. Lifecycle transitions never duplicate events.
 - `flutter analyze` and `flutter test` pass; `flutter test --platform chrome test/web` passes.
 - The bundle `index.html` contains `<base href="./">` and `https://sdk.crazygames.com/crazygames-sdk-v3.js` exactly once, before the Flutter loader script.
 - The bundle `index.html` has no `games-nav-bar` element and no `bon-on.github.io` link; the nav height variable is `0px`.
@@ -50,3 +51,7 @@ Out of scope: gameplay or rules changes, rewarded/banner ads, portal upload. (Th
 - `tool/build_crazygames.sh`
 - `node <harness-lab>/dist/index.js audit . --format md`
 - `reports/slide-merge-crazygames-verification.md`
+
+## Launch hardening — 2026-11-06
+
+The screen observes app lifecycle so hidden or inactive tabs pause play and sound, then resume only an active run. Widget regression checks cover background/resume and overlays.

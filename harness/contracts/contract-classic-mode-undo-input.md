@@ -3,6 +3,7 @@ id: contract-classic-mode-undo-input
 title: Deliver classic 4x4 mode, undo twist, and improved input
 status: active
 related_specs:
+  - feature-active-run-resume
   - feature-classic-mode-undo-input
   - feature-retention-polish
 evidence_files:

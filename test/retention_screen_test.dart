@@ -324,9 +324,7 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('changes before the stored progress loads are merged', (
-    tester,
-  ) async {
+  testWidgets('input waits until the stored progress loads', (tester) async {
     final store = _SlowStore(
       const SeaProgress.initial().withXp(500).withTile(9),
     );
@@ -343,6 +341,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(store.saveCount, 1);
     expect(store.value.totalXp, 500);
+    expect(store.value.discovered, contains(9));
+    expect(store.value.discovered, isNot(contains(5)));
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
     expect(store.value.discovered, containsAll(<int>[5, 9]));
     expect(store.value.bestPower, 9);
   });

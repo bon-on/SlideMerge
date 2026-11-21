@@ -80,7 +80,51 @@ Future<void> _slideRight(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 300));
 }
 
+// Mirror the browser's inactive transition on both sides of hidden.
+void _setLifecycle(WidgetTester tester, AppLifecycleState state) {
+  if ((state == AppLifecycleState.hidden &&
+          tester.binding.lifecycleState == AppLifecycleState.resumed) ||
+      (state == AppLifecycleState.resumed &&
+          tester.binding.lifecycleState == AppLifecycleState.hidden)) {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+  }
+  tester.binding.handleAppLifecycleStateChanged(state);
+}
+
 void main() {
+  testWidgets('background pauses once and resume respects overlays', (
+    tester,
+  ) async {
+    final platform = _FakePlatform();
+    await _pump(tester, platform, _FakeStore(seen: true));
+    expect(platform.events, ['start']);
+    addTearDown(() => _setLifecycle(tester, AppLifecycleState.resumed));
+    _setLifecycle(tester, AppLifecycleState.inactive);
+    await tester.pump();
+    _setLifecycle(tester, AppLifecycleState.hidden);
+    await tester.pump();
+    expect(platform.events, ['start', 'stop']);
+    _setLifecycle(tester, AppLifecycleState.resumed);
+    await tester.pump();
+    expect(platform.events, ['start', 'stop', 'start']);
+    await tester.tap(find.byTooltip('How to play'));
+    await tester.pump();
+    expect(platform.events, ['start', 'stop', 'start', 'stop']);
+    _setLifecycle(tester, AppLifecycleState.hidden);
+    await tester.pump();
+    _setLifecycle(tester, AppLifecycleState.resumed);
+    await tester.pump();
+    expect(platform.events, [
+      'start',
+      'stop',
+      'start',
+      'stop',
+    ], reason: 'an open tutorial stays stopped after resume');
+    await tester.tap(find.text('Skip'));
+    await tester.pump();
+    expect(platform.events, ['start', 'stop', 'start', 'stop', 'start']);
+  });
+
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets('seen tutorial: gameplay starts once the check resolves', (

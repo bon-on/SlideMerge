@@ -121,6 +121,97 @@ class SlideMergeGame {
   int _nextTileId = 1;
   _Snapshot? _snapshot;
 
+  Map<String, dynamic> toSnapshot() {
+    List<Object?> board(List<Tile?> value) => [
+      for (final tile in value) tile == null ? null : [tile.id, tile.power],
+    ];
+    return {
+      'v': 1,
+      'mode': mode.id,
+      'cells': board(cells),
+      'score': score,
+      'moves': moves,
+      'charges': undoCharges,
+      'mergeProgress': mergeProgress,
+      'nextId': _nextTileId,
+      if (_snapshot case final previous?)
+        'undo': {
+          'cells': board(previous.cells),
+          'score': previous.score,
+          'moves': previous.moves,
+          'mergeProgress': previous.mergeProgress,
+        },
+    };
+  }
+
+  /// Validation is atomic: a failed restore leaves this game untouched.
+  bool restoreSnapshot(Object? data) {
+    if (data is! Map || data['v'] != 1 || data['mode'] != mode.id) return false;
+    bool bounded(Object? v, int min, int max) =>
+        v is int && v >= min && v <= max;
+    final nextId = data['nextId'];
+    if (!bounded(nextId, 3, 1000000000) ||
+        !bounded(data['score'], 0, 1000000000000) ||
+        !bounded(data['moves'], 0, 1000000000) ||
+        !bounded(data['charges'], 0, maxUndoCharges) ||
+        !bounded(data['mergeProgress'], 0, mergesPerCharge - 1)) {
+      return false;
+    }
+    List<Tile?>? board(Object? raw) {
+      if (raw is! List || raw.length != size * size) return null;
+      final ids = <int>{};
+      final result = <Tile?>[];
+      for (final value in raw) {
+        if (value == null) {
+          result.add(null);
+          continue;
+        }
+        if (value is! List ||
+            value.length != 2 ||
+            !bounded(value[0], 1, (nextId as int) - 1) ||
+            !bounded(value[1], 1, 30) ||
+            !ids.add(value[0] as int)) {
+          return null;
+        }
+        result.add(Tile(id: value[0] as int, power: value[1] as int));
+      }
+      return ids.length < 2 ? null : result;
+    }
+
+    final restored = board(data['cells']);
+    if (restored == null) return false;
+    _Snapshot? previous;
+    final rawUndo = data['undo'];
+    if (rawUndo != null) {
+      if (rawUndo is! Map ||
+          !bounded(rawUndo['score'], 0, data['score'] as int) ||
+          !bounded(rawUndo['moves'], 0, 1000000000) ||
+          rawUndo['moves'] != (data['moves'] as int) - 1 ||
+          !bounded(rawUndo['mergeProgress'], 0, mergesPerCharge - 1)) {
+        return false;
+      }
+      final undoCells = board(rawUndo['cells']);
+      if (undoCells == null) return false;
+      previous = _Snapshot(
+        undoCells,
+        rawUndo['score'] as int,
+        rawUndo['moves'] as int,
+        rawUndo['mergeProgress'] as int,
+      );
+    }
+    cells = restored;
+    score = data['score'] as int;
+    moves = data['moves'] as int;
+    undoCharges = data['charges'] as int;
+    mergeProgress = data['mergeProgress'] as int;
+    _nextTileId = nextId as int;
+    _snapshot = previous;
+    lastMove = null;
+    lastSpawnedId = null;
+    lastSpawnedIndex = null;
+    return true;
+  }
+
   int get size => mode.size;
 
   bool get canUndo => undoCharges > 0 && _snapshot != null;

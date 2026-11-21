@@ -76,10 +76,12 @@ class SeaProgress {
     required this.bestPower,
     required this.selectedTheme,
     required this.runs,
+    this.activeRun,
   });
 
   const SeaProgress.initial()
-    : totalXp = 0,
+    : activeRun = null,
+      totalXp = 0,
       discovered = const <int>{1, 2},
       bestPower = 0,
       selectedTheme = SeaTheme.lagoon,
@@ -87,6 +89,17 @@ class SeaProgress {
 
   static const int participationXp = 10;
   static const int participationMinMoves = 10;
+
+  final Object? activeRun;
+
+  SeaProgress withActiveRun(Object? run) => SeaProgress(
+    totalXp: totalXp,
+    discovered: discovered,
+    bestPower: bestPower,
+    selectedTheme: selectedTheme,
+    runs: runs,
+    activeRun: run,
+  );
 
   final int totalXp;
 
@@ -178,6 +191,7 @@ class SeaProgress {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
+    if (activeRun != null) 'activeRun': activeRun,
     'totalXp': totalXp,
     'discovered': (discovered.toList()..sort()),
     'bestPower': bestPower,
@@ -200,6 +214,7 @@ class SeaProgress {
       }
     }
     final progress = SeaProgress(
+      activeRun: json['activeRun'],
       totalXp: readInt(json['totalXp']),
       discovered: Set.unmodifiable(found),
       bestPower: readInt(json['bestPower']).clamp(0, 30),
@@ -220,6 +235,7 @@ class SeaProgress {
     int? runs,
   }) {
     return SeaProgress(
+      activeRun: activeRun,
       totalXp: totalXp ?? this.totalXp,
       discovered: Set.unmodifiable(discovered ?? this.discovered),
       bestPower: bestPower ?? this.bestPower,

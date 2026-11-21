@@ -57,7 +57,7 @@ Sound: effects are muted while `SDK.game.settings.muteAudio` is true (read on ev
 - [ ] Progress Save: choose "Yes, using the Data Module from the CrazyGames SDK" (see Known limits).
 - [ ] Orientation: portrait. On desktop the game is centered in a narrow column.
 - [ ] Input: Swipe (touch or mouse drag), arrow keys or WASD to slide; Z or U undoes.
-- [ ] Covers to prepare (not created yet): 1920x1080, 800x1200, 800x800.
+- [ ] Prepared covers: 1920x1080, 800x1200, 800x800.
 - [ ] In the portal QA tool, check loading and gameplay events.
 
 ## Known limits
@@ -68,3 +68,10 @@ Sound: effects are muted while `SDK.game.settings.muteAudio` is true (read on ev
   - A login or logout (`user.addAuthListener`) to a different player reloads the page. If the initial user cannot be determined, cloud save stays off.
 - Classic 4x4 and Relaxed 5x5 modes.
 - Roboto is bundled (`assets/fonts/`), so the app does not fetch it from a Google font CDN.
+
+## Launch verification — 2026-11-06
+
+- Covers are maintained in the workspace marketing folder (`../_marketing/SlideMerge/crazygames-launch/`) in landscape 1920x1080, portrait 800x1200 and square 800x800 sizes.
+- Backgrounding or losing focus pauses SDK gameplay and sound; resume starts gameplay only if no tutorial/menu/result is open. Repeated lifecycle transitions do not duplicate events.
+- Local automated SDK tests use a fake SDK. Final portal QA must still confirm the real uploaded build's loading, inputs, audio mute and account progress persistence.
+- The self-contained release packet is prepared at `../_marketing/crazygames-launch-2026-11-06/SlideMerge/` (ZIP, media and submission metadata). Portal upload and real QA are pending authenticated portal access.
