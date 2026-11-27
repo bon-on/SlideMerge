@@ -33,7 +33,7 @@ and Android, and players need a way to turn them off.
   `tool/generate_sounds.py` (Python 3 stdlib, fixed seed, deterministic).
   No third-party audio.
 - `lib/src/audio/sound_fx.dart`: `SoundFx.play(Sfx)` is fire-and-forget, a
-  no-op when muted and never throws. Web uses HTML `Audio` elements
+  no-op when muted and never throws. Web uses the Web Audio API (`feature-web-audio-playback`)
   (`web_sound_web.dart`, with `web_sound_stub.dart` for other targets); native
   uses the MethodChannel `slide_merge/audio` (`play {asset, volume}`,
   `disposeAudio`). iOS plays with `AVAudioPlayer` in the `.ambient` session

@@ -37,7 +37,7 @@ abstract class SoundPlayer {
   void dispose();
 }
 
-/// Web: HTML audio elements. Native: the `slide_merge/audio` channel.
+/// Web: Web Audio buffer sources. Native: the `slide_merge/audio` channel.
 /// Every failure is swallowed so audio can never block input.
 class PlatformSoundPlayer implements SoundPlayer {
   static const MethodChannel _channel = MethodChannel('slide_merge/audio');
@@ -86,7 +86,7 @@ abstract class MusicPlayer {
   void dispose();
 }
 
-/// Web: a looping HTML audio element. Native: `startLoop` / `stopLoop` on the
+/// Web: a looping Web Audio source. Native: `startLoop` / `stopLoop` on the
 /// `slide_merge/audio` channel. Failures are swallowed.
 class PlatformMusicPlayer implements MusicPlayer {
   static const MethodChannel _channel = MethodChannel('slide_merge/audio');
