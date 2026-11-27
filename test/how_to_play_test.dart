@@ -292,7 +292,16 @@ void main() {
     ) async {
       await _pump(tester, _FakeStore(), size: size);
       expect(tester.takeException(), isNull);
-      final card = tester.getRect(find.byType(SingleChildScrollView));
+      // The whole card (its outermost Material), including the pinned
+      // Skip/Next footer below the scrolling step.
+      final card = tester.getRect(
+        find
+            .descendant(
+              of: find.byType(HowToPlayOverlay),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
       expect(card.width, lessThanOrEqualTo(360));
       expect(card.bottom, lessThanOrEqualTo(size.height));
     });
