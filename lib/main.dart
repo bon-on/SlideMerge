@@ -171,6 +171,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
   late final SoundFx _sound =
       widget.soundFx ?? SoundFx(platform: widget.platform);
   late final AppLifecycleListener _lifecycle;
+  bool _breakAdInProgress = false;
 
   // Input waits for persisted progress before installing the active attempt.
   SeaProgress _progress = const SeaProgress.initial();
@@ -526,8 +527,40 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     _refocusLater();
   }
 
+  /// Player-requested new board: after a finished run it waits for a portal
+  /// break ad first (feature-gamepix-sdk); mid-run restarts never show one.
+  void _newRun() {
+    if (_game.isGameOver) {
+      // Only start over if the run is still finished after the ad.
+      _afterBreakAd(() {
+        if (_game.isGameOver) _restart();
+      });
+    } else {
+      _restart();
+    }
+  }
+
+  /// Runs [action] after a portal ad when the platform shows one. Elsewhere
+  /// [action] runs right away.
+  Future<void> _afterBreakAd(VoidCallback action) async {
+    if (!widget.platform.showsRunBreakAds) {
+      action();
+      return;
+    }
+    if (_breakAdInProgress) return;
+    _breakAdInProgress = true;
+    try {
+      await widget.platform.showRunBreakAd();
+    } catch (_) {
+      // A failed ad never keeps the player from the next run.
+    } finally {
+      _breakAdInProgress = false;
+    }
+    if (mounted) action();
+  }
+
   void _setMode(GameMode mode) {
-    if (!_progressLoaded) return;
+    if (!_progressLoaded || _breakAdInProgress) return;
     if (mode.id == _mode.id) return;
     _offerResultIfNeeded(force: true);
     setState(() {
@@ -554,6 +587,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
       _tutorialOpen ||
       !_tutorialChecked ||
       _albumOpen ||
+      _breakAdInProgress ||
       _summary != null;
 
   void _undo() {
@@ -697,7 +731,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     if (_summary != null) {
       if (key == LogicalKeyboardKey.enter ||
           key == LogicalKeyboardKey.numpadEnter) {
-        if (!repeat) _restart();
+        if (!repeat) _newRun();
         return KeyEventResult.handled;
       }
       if (key == LogicalKeyboardKey.escape) {
@@ -847,7 +881,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
     RoundIconButton(
       icon: Icons.refresh_rounded,
       tooltip: 'Restart',
-      onPressed: _restart,
+      onPressed: _newRun,
       palette: palette,
       size: size,
     ),
@@ -934,7 +968,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
               backgroundColor: palette.accent,
               foregroundColor: palette.accentInk,
             ),
-            onPressed: _restart,
+            onPressed: _newRun,
             icon: const Icon(Icons.refresh),
             label: const Text('Restart'),
           ),
@@ -983,7 +1017,7 @@ class _SlideMergeScreenState extends State<SlideMergeScreen> {
                           key: ValueKey('summary-$_generation'),
                           data: summary,
                           palette: palette,
-                          onPlayAgain: _restart,
+                          onPlayAgain: _newRun,
                           onClose: _closeSummary,
                           onLevelUp: () => _sound.play(Sfx.levelUp),
                         ),

@@ -5,8 +5,9 @@ import 'game_platform_factory_stub.dart'
 /// Hooks a distribution portal needs from the game loop.
 ///
 /// Mobile and plain web builds use [NoopGamePlatform]; CrazyGames web builds
-/// (`--dart-define=CRAZYGAMES=true`) use the SDK-backed implementation and
-/// GamePix builds (`--dart-define=GAMEPIX=true`) a no-op without result upload.
+/// (`--dart-define=CRAZYGAMES=true`) use the CrazyGames SDK adapter and
+/// GamePix builds (`--dart-define=GAMEPIX=true`) the GamePix SDK adapter
+/// (feature-gamepix-sdk).
 abstract class GamePlatform {
   const GamePlatform();
 
@@ -29,11 +30,19 @@ abstract class GamePlatform {
   /// Registers a callback for when [isAudioMuted] may have changed (portal
   /// settings). Platforms without such events ignore it.
   void setAudioMuteListener(void Function()? listener) {}
+
+  /// Whether [showRunBreakAd] may show an ad, so callers only wait for it on
+  /// such platforms (feature-gamepix-sdk).
+  bool get showsRunBreakAds => false;
+
+  /// Shows an ad between runs. Completes when the ad ends, fails or is
+  /// skipped (cooldown), so callers can always continue afterwards.
+  Future<void> showRunBreakAd() async {}
 }
 
 class NoopGamePlatform extends GamePlatform {
-  /// [allowsResultRegistration] is false for portal builds without an SDK
-  /// (GamePix, `--dart-define=GAMEPIX=true`): no external network calls.
+  /// [allowsResultRegistration] is false for portal behaviour without an SDK
+  /// (tests and the GamePix adapter's fallback).
   const NoopGamePlatform({this.allowsResultRegistration = true});
 
   @override

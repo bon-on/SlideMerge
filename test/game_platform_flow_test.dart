@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -19,7 +20,22 @@ class _FakeStore extends TutorialStore {
 }
 
 class _FakePlatform extends GamePlatform {
-  _FakePlatform({this.allowsResultRegistration = false});
+  _FakePlatform({
+    this.allowsResultRegistration = false,
+    this.showsRunBreakAds = false,
+  });
+
+  @override
+  final bool showsRunBreakAds;
+
+  /// Completes the ad in flight; null when no ad was requested.
+  Completer<void>? ad;
+
+  @override
+  Future<void> showRunBreakAd() {
+    events.add('ad');
+    return (ad = Completer<void>()).future;
+  }
 
   @override
   final bool allowsResultRegistration;
@@ -196,6 +212,37 @@ void main() {
     await tester.tap(find.byTooltip('Restart'));
     await tester.pump();
     expect(platform.events, hasLength(5));
+  });
+
+  testWidgets('a new board after game over waits for the break ad', (
+    tester,
+  ) async {
+    final platform = _FakePlatform(showsRunBreakAds: true);
+    await _pump(tester, platform, _FakeStore(seen: true));
+
+    await _slideRight(tester);
+    expect(find.textContaining('No moves left'), findsOneWidget);
+    await tester.tap(find.byTooltip('Restart'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Restart'));
+    await tester.pump();
+    expect(platform.events.where((e) => e == 'ad'), hasLength(1));
+    expect(find.textContaining('No moves left'), findsOneWidget);
+
+    // Undo is blocked while the ad plays, so the finished run stays finished.
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('No moves left'), findsOneWidget);
+
+    platform.ad!.complete();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('No moves left'), findsNothing);
+    expect(platform.events.last, 'start');
+
+    // Mid-run restarts never show an ad.
+    await tester.tap(find.byTooltip('Restart'));
+    await tester.pump();
+    expect(platform.events.where((e) => e == 'ad'), hasLength(1));
   });
 
   testWidgets('leaderboard prompt follows the platform', (tester) async {

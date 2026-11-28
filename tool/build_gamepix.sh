@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds the GamePix upload bundle: build/gamepix/ and build/slide-merge-gamepix.zip.
-# SDK-free: no third-party scripts, no external links, no network access.
+# The only third-party script is the GamePix SDK v3 (feature-gamepix-sdk): no
+# other scripts, no external links, no other network access.
 # See docs/gamepix.md.
 set -euo pipefail
 
@@ -25,17 +26,36 @@ perl -0pi -e 's#\s*<nav class="games-nav-bar".*?</nav>##s' "$INDEX"
 # Drop the template's documentation comment (it contains an external URL).
 perl -0pi -e 's#\s*<!--\s*If you are serving.*?-->##s' "$INDEX"
 perl -pi -e 's#--games-nav-height: calc\([^;]*\);#--games-nav-height: 0px;#' "$INDEX"
+# GamePix SDK with manual lifecycle, loaded in <head> before the inline Flutter
+# bootstrap so localStorage sync is active from the game's first read.
+SDK_URL="https://integration.gamepix.com/sdk/v3/gamepix.sdk.js"
+SDK_TAG="<script src=\"$SDK_URL\"></script>"
+CONFIG_TAG="<script>window.GamePixConfig = { lifecycle: 'manual' };</script>"
+perl -pi -e "s#^(\\s*)</head>#\$1  $CONFIG_TAG\n\$1  $SDK_TAG\n\$1</head>#" "$INDEX"
+if [ "$(grep -c -F "$SDK_TAG" "$INDEX")" != 1 ] || ! grep -q -F "$CONFIG_TAG" "$INDEX"; then
+  echo "error: GamePix SDK script or manual lifecycle config missing" >&2
+  exit 1
+fi
+config_line=$(grep -n -m1 -F "$CONFIG_TAG" "$INDEX" | cut -d: -f1 || true)
+sdk_line=$(grep -n -m1 -F "$SDK_TAG" "$INDEX" | cut -d: -f1 || true)
+boot_line=$(grep -n -m1 -F '_flutter.loader.load' "$INDEX" | cut -d: -f1 || true)
+if ! { [ "$config_line" -lt "$sdk_line" ] && [ "$sdk_line" -lt "$boot_line" ]; }; then
+  echo "error: GamePix config and SDK must precede the Flutter bootstrap" >&2
+  exit 1
+fi
+# Every other check sees the page without the SDK tag.
+INDEX_NO_SDK="$(grep -v -F "$SDK_TAG" "$INDEX")"
 
 grep -q '<base href="./">' "$INDEX" || { echo "error: relative base href missing" >&2; exit 1; }
-if grep -q -i -e 'crazygames' -e 'bon-on.github.io' -e 'games-nav-bar"' "$INDEX"; then
+if grep -q -i -e 'crazygames' -e 'bon-on.github.io' -e 'games-nav-bar"' <<<"$INDEX_NO_SDK"; then
   echo "error: portal SDK or hub navigation still present in index.html" >&2
   exit 1
 fi
-if grep -q -E '<script[^>]+src=' "$INDEX"; then
-  echo "error: index.html must not load external scripts" >&2
+if grep -q -E '<script[^>]+src=' <<<"$INDEX_NO_SDK"; then
+  echo "error: index.html must not load scripts other than the GamePix SDK" >&2
   exit 1
 fi
-if grep -q -E '(href|src|action)="(https?:)?//' "$INDEX"; then
+if grep -q -E '(href|src|action)="(https?:)?//' <<<"$INDEX_NO_SDK"; then
   echo "error: index.html links to an outbound URL" >&2
   exit 1
 fi
@@ -66,6 +86,10 @@ if ! unzip -l "$ZIP" | awk '{print $4}' | grep -qx 'index.html'; then
   exit 1
 fi
 cg_count=$({ grep -o -i 'crazygames' "$OUT/main.dart.js" || true; } | wc -l | tr -d ' ')
+if [ "$cg_count" != 0 ]; then
+  echo "error: CrazyGames strings found in the GamePix main.dart.js" >&2
+  exit 1
+fi
 zip_kb=$(du -k "$ZIP" | cut -f1)
 echo "GamePix bundle: $OUT ($file_count files, ${total_kb}KB)"
 echo "Upload zip: $ZIP (${zip_kb}KB)"

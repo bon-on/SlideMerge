@@ -1,6 +1,6 @@
 # GamePix upload
 
-A web build made with `--dart-define=GAMEPIX=true` is SDK-free: no third-party script, no hub link, no leaderboard upload, no ads, no external requests. Other builds (GitHub Pages, CrazyGames, mobile) are unaffected.
+A web build made with `--dart-define=GAMEPIX=true` loads the GamePix SDK v3 (manual lifecycle, feature-gamepix-sdk) and no other third-party script: no hub link, no leaderboard upload, no other external requests. GamePix interstitials play only between finished runs, at most every 2 minutes. Other builds (GitHub Pages, CrazyGames, mobile) are unaffected.
 
 ## Build
 
@@ -32,7 +32,7 @@ cd build && python3 -m http.server 8765
 ## Upload checklist
 
 - [ ] Zip: `build/slide-merge-gamepix.zip`.
-- [ ] SDK integration: none.
+- [ ] SDK integration: checked (GamePix SDK v3, interstitial ads, pause/resume, localStorage sync).
 - [ ] Orientation: portrait.
 - [ ] Desktop and Mobile friendly: yes (touch and mouse). Input: Swipe (touch or mouse drag), arrow keys or WASD to slide; Z or U undoes.
 - [ ] Icon 256x256 and cover 1360x850 (not created yet).

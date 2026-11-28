@@ -5,6 +5,7 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:slide_merge/platform/crazygames_platform.dart';
 import 'package:slide_merge/platform/game_platform.dart';
+import 'package:slide_merge/platform/gamepix_platform.dart';
 import 'package:slide_merge/platform/game_platform_factory_web.dart';
 
 void main() {
@@ -14,9 +15,9 @@ void main() {
     expect(platform.allowsResultRegistration, isTrue);
   });
 
-  test('GamePix build is a no-op without result registration', () {
+  test('GamePix build uses the SDK adapter without result registration', () {
     final platform = selectGamePlatform(crazyGames: false, gamePix: true);
-    expect(platform, isA<NoopGamePlatform>());
+    expect(platform, isA<GamePixPlatform>());
     expect(platform.allowsResultRegistration, isFalse);
   });
 
