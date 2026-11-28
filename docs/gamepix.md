@@ -1,6 +1,6 @@
 # GamePix upload
 
-A web build made with `--dart-define=GAMEPIX=true` loads the GamePix SDK v3 (manual lifecycle, feature-gamepix-sdk) and no other third-party script: no hub link, no leaderboard upload, no other external requests. GamePix interstitials play only between finished runs, at most every 2 minutes. Other builds (GitHub Pages, CrazyGames, mobile) are unaffected.
+A web build made with `--dart-define=GAMEPIX=true` loads the GamePix SDK v3 (manual lifecycle, feature-gamepix-sdk) and no other third-party script: no hub link, no leaderboard upload, no other external requests. GamePix interstitials play only between finished runs, at least 2 minutes apart (the Player caps them at one every 3 minutes). Other builds (GitHub Pages, CrazyGames, mobile) are unaffected.
 
 ## Build
 
